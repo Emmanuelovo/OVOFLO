@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OvoWorks Trading Suite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="authScreen" style="max-width:420px;margin:4rem auto;">
+  <div class="card">
+    <h1 style="font-size:1.5rem;">OvoWorks <span>Trading Suite</span></h1>
+    <p class="sub" style="margin-bottom:1.2rem;">Sign in to your private workspace — your plans, journal, and settings are yours alone.</p>
+
+    <div class="subtabs">
+      <button class="subtab active" id="authTab-login" onclick="showAuthTab('login')">Log In</button>
+      <button class="subtab" id="authTab-register" onclick="showAuthTab('register')">Create Account</button>
+    </div>
+
+    <div id="authForm-login">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@example.com"/>
+      <label style="margin-top:.6rem;">Password</label>
+      <input type="password" id="login-password" placeholder="••••••••"/>
+      <button class="btn block" style="margin-top:1rem;" onclick="doLogin()">Log In</button>
+    </div>
+
+    <div id="authForm-register" style="display:none;">
+      <label>Name (optional)</label>
+      <input type="text" id="register-name" placeholder="Your name"/>
+      <label style="margin-top:.6rem;">Email</label>
+      <input type="email" id="register-email" placeholder="you@example.com"/>
+      <label style="margin-top:.6rem;">Password (min 8 characters)</label>
+      <input type="password" id="register-password" placeholder="••••••••"/>
+      <button class="btn block" style="margin-top:1rem;" onclick="doRegister()">Create Account</button>
+    </div>
+
+    <div id="authError" class="danger-box" style="display:none;margin-top:1rem;"></div>
+  </div>
+</div>
+
+<div id="appRoot" class="wrap" style="display:none;">
+
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
+  <div>
+    <h1>OvoWorks <span>Trading Suite</span></h1>
+    <p class="sub" style="margin-bottom:0;">Plans · Daily Bias · Journal · Reviews · Meditation · Calculator · Learn — saved to your database as you go.</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:.6rem;">
+    <span class="hint" id="accountEmail"></span>
+    <button class="btn ghost sm" onclick="doLogout()">Log Out</button>
+  </div>
+</div>
+<div style="height:1rem;"></div>
+
+<div class="navbar" id="mainNav"></div>
+
+<!-- ================= PLANS ================= -->
+<div id="panel-plans" class="panel active">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.8rem;">
+      <h2 style="margin:0;"><span class="eyebrow">PLAYBOOKS</span> Your Trading Plans</h2>
+      <button class="btn sm" onclick="createPlan()">+ New Plan</button>
+    </div>
+    <p class="hint" style="margin-top:.4rem;">Design one plan per market or per setup. Each plan carries its own charting checklist, entry model, exit rules, trade management, and timeframe mapping.</p>
+    <div class="plan-chip-row" id="planChips" style="margin-top:1rem;"></div>
+  </div>
+  <div id="planEditorWrap"></div>
+</div>
+
+<!-- ================= DAILY BIAS ================= -->
+<div id="panel-bias" class="panel">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.8rem;">
+      <h2 style="margin:0;"><span class="eyebrow">BIAS</span> Developing Daily Bias</h2>
+      <input type="date" id="biasDate" style="width:auto;" onchange="loadBias()"/>
+    </div>
+    <p class="hint">Run this before you touch a chart. Five checks, in order. If invalidated — you stop, you don't chase.</p>
+  </div>
+
+  <div class="card">
+    <h3>1 · HTF Trend &amp; Price Position</h3>
+    <div class="grid2">
+      <div><label>Higher Timeframe Trend</label>
+        <select id="b-trend"><option>Bullish</option><option>Bearish</option><option>Ranging</option></select>
+      </div>
+      <div><label>Price Is Trading At</label>
+        <select id="b-position">
+          <option value="premium">Premium — Sells only</option>
+          <option value="discount">Discount — Buys only</option>
+          <option value="middle">Middle — No trade / reduced risk</option>
+        </select>
+      </div>
+    </div>
+    <h3>2 · Where Is Liquidity Resting</h3>
+    <div class="grid2">
+      <div><label>Yesterday's Daily High</label><input type="number" id="b-ydhigh" placeholder="0.00"/></div>
+      <div><label>Yesterday's Daily Low</label><input type="number" id="b-ydlow" placeholder="0.00"/></div>
+    </div>
+    <textarea id="b-liqnotes" placeholder="Notes on where else liquidity is resting (equal highs/lows, round numbers, swing points)..." style="margin-top:.6rem;"></textarea>
+    <h3>3 · Continuation, Reversal, or Choppy?</h3>
+    <select id="b-scenario">
+      <option value="continuation">Continuation</option>
+      <option value="reversal">Reversal</option>
+      <option value="choppy">Choppy — stand aside</option>
+    </select>
+    <h3>4 · TP Target — Where Could Price Go?</h3>
+    <textarea id="b-tp" placeholder="Could price target yesterday's high or low? Next major S&D zone?"></textarea>
+    <h3>5 · Invalidation</h3>
+    <p class="hint" style="margin-bottom:.5rem;">Your bias is wrong if price breaks a key level with a <strong>full candle body close</strong>. That trade is done — re-evaluate for the next one. No revenge trading.</p>
+    <input type="text" id="b-invLevel" placeholder="Key invalidation level (price)"/>
+    <div class="switch-row" style="margin-top:.6rem;">
+      <span class="lbl">Bias invalidated today (full body close through key level)</span>
+      <label class="switch"><input type="checkbox" id="b-invalidated"/><span class="track"></span></label>
+    </div>
+    <button class="btn block" style="margin-top:1rem;" onclick="saveBias()">Save Today's Bias</button>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Recent Bias Log</h3>
+    <div id="biasLog"></div>
+  </div>
+</div>
+
+<!-- ================= JOURNAL ================= -->
+<div id="panel-journal" class="panel">
+  <div class="subtabs">
+    <button class="subtab active" onclick="showJournalSub('cal')">Calendar</button>
+  </div>
+  <div id="journal-cal" class="jsub">
+    <div class="card">
+      <div class="cal-head">
+        <button class="btn ghost sm" onclick="calShift(-1)">← Prev</button>
+        <div class="month-label" id="calLabel"></div>
+        <button class="btn ghost sm" onclick="calShift(1)">Next →</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+    <div id="dayDetail"></div>
+  </div>
+</div>
+
+<!-- ================= REVIEWS ================= -->
+<div id="panel-reviews" class="panel">
+  <div class="subtabs">
+    <button class="subtab active" onclick="showReviewSub('weekly')">Weekly</button>
+    <button class="subtab" onclick="showReviewSub('monthly')">Monthly</button>
+    <button class="subtab" onclick="showReviewSub('quarterly')">Quarterly</button>
+    <button class="subtab" onclick="showReviewSub('annual')">Annual</button>
+  </div>
+  <div id="review-nav" class="card" style="display:flex;align-items:center;justify-content:space-between;">
+    <button class="btn ghost sm" onclick="reviewShift(-1)">← Prev</button>
+    <div class="month-label" id="reviewPeriodLabel"></div>
+    <button class="btn ghost sm" onclick="reviewShift(1)">Next →</button>
+  </div>
+  <div id="reviewStatsCard" class="card">
+    <h2 style="margin:0;"><span class="eyebrow">STATS</span> Performance</h2>
+    <div class="result-grid" id="reviewStats"></div>
+  </div>
+  <div id="reviewFormWrap"></div>
+</div>
+
+<!-- ================= SETTINGS ================= -->
+<div id="panel-settings" class="panel">
+  <div class="card">
+    <h2 style="margin:0;"><span class="eyebrow">PREFS</span> Default Preferences</h2>
+    <p class="hint">Defaults used when you create a new plan. Existing plans aren't changed.</p>
+    <div class="grid3" style="margin-top:.8rem;">
+      <div><label>Default Market</label>
+        <select id="st-market"><option value="crypto">Crypto / RWA Futures</option><option value="forex">Forex</option><option value="commodities">Commodities</option></select>
+      </div>
+      <div><label>Default Timeframe Style</label>
+        <select id="st-tfstyle"><option value="scalp">Scalp</option><option value="day">Day Trading</option><option value="swing">Swing Trading</option><option value="custom">Custom</option></select>
+      </div>
+      <div><label>Default Entry Model</label>
+        <select id="st-entrymodel"><option value="aggressive">Aggressive</option><option value="conservative">Conservative</option></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 style="margin:0;"><span class="eyebrow">GUARDRAILS</span> Trading Guardrails</h2>
+      <label class="switch"><input type="checkbox" id="st-grd-enabled"/><span class="track"></span></label>
+    </div>
+    <p class="hint">When enabled, these limits are checked every time you try to log a new trade. Hit one and the app blocks the save (you can still override, deliberately, if you must).</p>
+    <div class="grid2" style="margin-top:.8rem;">
+      <div><label>Account Capital ($)</label><input type="number" id="st-grd-capital"/></div>
+      <div><label>Risk Per Trade (% of capital)</label><input type="number" id="st-grd-riskpct" step="0.1"/></div>
+      <div><label>Max Trades Per Day</label><input type="number" id="st-grd-maxtrades"/></div>
+      <div><label>Max Account Drawdown (% of capital)</label><input type="number" id="st-grd-maxdd" step="0.1"/></div>
+      <div><label>Max Daily Loss (% of capital)</label><input type="number" id="st-grd-maxdailyloss" step="0.1"/></div>
+      <div><label>Max Daily Profit (% of capital)</label><input type="number" id="st-grd-maxdailyprofit" step="0.1"/></div>
+    </div>
+    <div class="info-box" id="st-risk-preview" style="margin-top:.8rem;"></div>
+    <button class="btn block" style="margin-top:1rem;" onclick="saveSettings()">Save Settings</button>
+  </div>
+</div>
+
+<!-- ================= INSIGHTS (Equity Curve + News) ================= -->
+<div id="panel-insights" class="panel">
+  <div class="card">
+    <h2 style="margin:0;"><span class="eyebrow">EQUITY</span> Equity Curve</h2>
+    <p class="hint">Cumulative P/L across every logged trade, in order. The shaded gap from the peak line is your current drawdown.</p>
+    <div id="equityChartWrap" style="margin-top:1rem;"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem;">
+      <h2 style="margin:0;"><span class="eyebrow">NEWS</span> Upcoming Economic Calendar</h2>
+      <button class="btn ghost sm" onclick="loadNews()">Refresh</button>
+    </div>
+    <p class="hint">Best-effort feed from an unofficial third-party source — always verify high-impact events directly before trading around them.</p>
+    <div id="newsWrap" style="margin-top:.8rem;"></div>
+  </div>
+</div>
+
+<!-- ================= MEDITATION ================= -->
+<div id="panel-med" class="panel">
+  <div class="card" style="background:linear-gradient(160deg,#F3F0FF,#EAF6F2);">
+    <h2 style="margin:0;"><span class="eyebrow" style="background:rgba(155,140,255,.15);color:#6a5acd;">RESET</span> Meditation Room</h2>
+    <p class="hint">Clear the noise of the last trade before you open the next chart. A few quiet minutes here is part of the plan, not a break from it.</p>
+    <div class="med-stage">
+      <div class="breath-circle" id="breathCircle">Ready</div>
+      <div class="med-timer" id="medTimer">03:00</div>
+      <div class="pill-row" style="justify-content:center;margin-top:1rem;">
+        <button class="pill" data-min="1" onclick="setMedDuration(1,this)">1 min</button>
+        <button class="pill active" data-min="3" onclick="setMedDuration(3,this)">3 min</button>
+        <button class="pill" data-min="5" onclick="setMedDuration(5,this)">5 min</button>
+        <button class="pill" data-min="10" onclick="setMedDuration(10,this)">10 min</button>
+      </div>
+    </div>
+    <label>What's weighing on you right now? (optional)</label>
+    <textarea id="medPre" placeholder="e.g. still frustrated about the SL hit on GBPUSD..."></textarea>
+    <div class="grid2" style="margin-top:.8rem;">
+      <div><label>Mood Before (1 heavy – 5 clear)</label>
+        <select id="medMoodBefore"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+      </div>
+      <div><button class="btn lavender block" style="margin-top:1.5rem;" id="medStartBtn" onclick="startMeditation()">Begin Session</button></div>
+    </div>
+  </div>
+  <div class="card" id="medPostCard" style="display:none;">
+    <h3 style="margin-top:0;">Session Complete</h3>
+    <label>Mood After (1 heavy – 5 clear)</label>
+    <select id="medMoodAfter"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option></select>
+    <label style="margin-top:.6rem;">Anything you want to note before you trade?</label>
+    <textarea id="medPost" placeholder="Optional closing note..."></textarea>
+    <button class="btn lavender block" style="margin-top:.8rem;" onclick="saveMeditation()">Save & Return to Session</button>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;">Recent Sessions</h3>
+    <div id="medLog"></div>
+  </div>
+</div>
+
+<!-- ================= CALCULATOR ================= -->
+<div id="panel-calc" class="panel">
+  <div class="subtabs">
+    <button class="subtab active" onclick="showCalcSub('single')">Position / Pip Calculator</button>
+    <button class="subtab" onclick="showCalcSub('pairs')">Pairs Trade</button>
+  </div>
+  <div id="calc-single" class="csub">
+    <div class="card">
+      <h3 style="margin-top:0;">Market Type</h3>
+      <div class="pill-row">
+        <button class="pill active" id="modeBtn-crypto" onclick="setCalcMode('crypto')">Crypto / RWA Futures — Position Size</button>
+        <button class="pill" id="modeBtn-forex" onclick="setCalcMode('forex')">Forex — PIP Calculator</button>
+      </div>
+      <p class="hint" id="modeHint"></p>
+    </div>
+    <div id="cryptoCalc">
+      <div class="card"><h3 style="margin-top:0;">Select Platform</h3><div class="grid4" id="platformGrid"></div></div>
+      <div class="card">
+        <h3 style="margin-top:0;">Trade Parameters</h3>
+        <div class="grid2">
+          <div><label>Your Capital ($)</label><input type="number" id="capital" value="100" min="1" oninput="calc()"/></div>
+          <div><label>Leverage (x)</label><input type="number" id="leverage" value="2" min="1" max="125" oninput="calc()"/></div>
+          <div><label>Maker Fee (%)</label><input type="number" id="makerFee" value="0" step="0.01" oninput="calc()"/></div>
+          <div><label>Taker Fee (%)</label><input type="number" id="takerFee" value="0" step="0.01" oninput="calc()"/></div>
+          <div><label>Order Type</label><select id="orderType" onchange="calc()"><option value="taker">Market Order (Taker)</option><option value="maker">Limit Order (Maker)</option></select></div>
+          <div><label>Funding Rate / 8h (%)</label><input type="number" id="fundingRate" value="0.01" step="0.001" oninput="calc()"/></div>
+          <div><label>Hold Duration (hours)</label><input type="number" id="holdHours" value="24" min="0" oninput="calc()"/></div>
+          <div><label>Target Profit (%)</label><input type="number" id="targetProfit" value="2" step="0.1" oninput="calc()"/></div>
+        </div>
+      </div>
+      <div class="card"><h3 style="margin-top:0;">Fee Breakdown</h3><div id="feeBreakdown"></div></div>
+      <div class="result-grid" id="results"></div>
+    </div>
+    <div id="forexCalc" style="display:none;">
+      <div class="card">
+        <h3 style="margin-top:0;">Pip Risk Parameters</h3>
+        <div class="grid2">
+          <div><label>Account Capital ($)</label><input type="number" id="fx-capital" value="1000" oninput="calcPip()"/></div>
+          <div><label>Risk Per Trade (%)</label><input type="number" id="fx-risk" value="1" step="0.1" oninput="calcPip()"/></div>
+          <div><label>Stop Loss (pips)</label><input type="number" id="fx-sl" value="20" oninput="calcPip()"/></div>
+          <div><label>Pip Value / Standard Lot ($)</label><input type="number" id="fx-pipval" value="10" step="0.01" oninput="calcPip()"/></div>
+          <div><label>Target (pips)</label><input type="number" id="fx-tp" value="40" oninput="calcPip()"/></div>
+          <div><label>Pair (label only)</label><input type="text" id="fx-pair" value="EUR/USD" oninput="calcPip()"/></div>
+        </div>
+        <p class="hint" style="margin-top:.6rem;">Standard lot = 100,000 units. Mini lot = 0.1, Micro lot = 0.01. Pip value defaults to $10/standard lot for USD-quoted pairs — adjust for your actual pair.</p>
+      </div>
+      <div class="card"><h3 style="margin-top:0;">Position Sizing</h3><div id="fxBreakdown"></div></div>
+      <div class="result-grid" id="fxResults"></div>
+    </div>
+  </div>
+  <div id="calc-pairs" class="csub" style="display:none;">
+    <div class="card">
+      <h3 style="margin-top:0;">Pairs Trade Calculator (BTC/ETH style)</h3>
+      <div class="grid2">
+        <div><label>Total Capital ($)</label><input type="number" id="p-capital" value="100" oninput="calcPairs()"/></div>
+        <div><label>Leverage (x)</label><input type="number" id="p-leverage" value="2" oninput="calcPairs()"/></div>
+        <div><label>Asset A Entry Price ($)</label><input type="number" id="p-btc-entry" value="83000" oninput="calcPairs()"/></div>
+        <div><label>Asset B Entry Price ($)</label><input type="number" id="p-eth-entry" value="3100" oninput="calcPairs()"/></div>
+        <div><label>Asset A Exit Price ($)</label><input type="number" id="p-btc-exit" value="84000" oninput="calcPairs()"/></div>
+        <div><label>Asset B Exit Price ($)</label><input type="number" id="p-eth-exit" value="3050" oninput="calcPairs()"/></div>
+        <div><label>Fee Rate (%)</label><input type="number" id="p-fee" value="0" step="0.01" oninput="calcPairs()"/></div>
+        <div><label>Funding / 8h (%)</label><input type="number" id="p-funding" value="0.01" step="0.001" oninput="calcPairs()"/></div>
+      </div>
+      <label style="margin-top:.8rem;">Hold Duration (hours)</label>
+      <input type="number" id="p-hours" value="24" oninput="calcPairs()"/>
+    </div>
+    <div class="card"><h3 style="margin-top:0;">Position Breakdown</h3><div id="pairs-breakdown"></div></div>
+    <div class="result-grid" id="pairs-results"></div>
+    <div class="tip" id="pairs-verdict" style="margin-top:1rem"></div>
+  </div>
+</div>
+
+<!-- ================= LEARN ================= -->
+<div id="panel-learn" class="panel">
+  <div class="subtabs">
+    <button class="subtab active" onclick="showLearnSub('liq')">Liquidity</button>
+    <button class="subtab" onclick="showLearnSub('ms')">Market Structure</button>
+    <button class="subtab" onclick="showLearnSub('ihs')">Inv H&amp;S</button>
+    <button class="subtab" onclick="showLearnSub('videos')">Videos</button>
+  </div>
+  <div id="learn-liq" class="lsub">
+    <div class="card">
+      <div style="font-weight:700;color:var(--teal-deep);margin-bottom:.5rem;">What Is Liquidity?</div>
+      <p class="hint">Liquidity means clusters of resting orders waiting to be filled. Where lots of orders sit = high liquidity zone. Where few sit = low liquidity zone — like a busy market stall versus a quiet back alley.</p>
+      <div class="terminal">
+<span class="white">Price</span>
+  $84,500 ──── <span class="amber">SELL STOPS / RESISTANCE</span> ──── (liquidity resting above)
+              ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑
+  $84,000 ────────────────────────────────
+  $83,500 ──── <span class="sky">current price area</span> ─────────
+  $83,000 ────────────────────────────────
+              ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓
+  $82,500 ──── <span class="amber">BUY STOPS / SUPPORT</span> ──────── (liquidity resting below)</div>
+      <h3>Where Liquidity Rests</h3>
+      <table>
+        <tr><th>Location</th><th>Why Orders Cluster There</th><th>Type</th></tr>
+        <tr><td>Previous highs</td><td>Stops sit just above old highs</td><td><span class="tag tag-r">Sell stops</span></td></tr>
+        <tr><td>Previous lows</td><td>Stops sit just below old lows</td><td><span class="tag tag-g">Buy stops</span></td></tr>
+        <tr><td>Round numbers</td><td>$80,000 / $85,000 — natural order placement</td><td><span class="tag tag-b">Both</span></td></tr>
+        <tr><td>Swing highs/lows</td><td>Obvious chart levels</td><td><span class="tag tag-b">Both</span></td></tr>
+        <tr><td>Equal highs/lows</td><td>Level touched twice = magnet</td><td><span class="tag tag-b">Both</span></td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;color:var(--teal-deep);margin-bottom:.5rem;">Sweep of Liquidity Above/Below a POI</div>
+      <p class="hint">POI = Point of Interest, a key level where significant orders sit. A sweep is when price briefly spikes past that level, triggers the resting stops, then reverses.</p>
+      <div class="terminal">
+  $85,200 ─── <span class="amber">SWEEP</span> (spike above, grabs stops) ← smart money sells here
+              ↗ ↘
+  $85,000 ─── OLD HIGH (POI) ─────────────────── stops sitting here
+  $84,800 ────────────────────────────────────── gets triggered
+  $84,500 ────────────────────────────────────── price reverses
+  $84,000 ──── <span class="sky">TRUE DIRECTION IS DOWN</span> ─────────
+  $83,500 ↓ ↓ ↓ move begins here after sweep</div>
+      <h3>How To Trade A Liquidity Sweep</h3>
+      <p class="hint">Wait for the sweep to complete — don't chase the spike. Entry: when price closes back below the swept level. Stop loss: above the sweep high. Target: next major support level below.</p>
+    </div>
+  </div>
+  <div id="learn-ms" class="lsub" style="display:none;">
+    <div class="card">
+      <div style="font-weight:700;color:var(--teal-deep);margin-bottom:.5rem;">Market Structure</div>
+      <p class="hint">The pattern of higher highs/lows or lower highs/lows tells you whether the market is bullish, bearish, or transitioning.</p>
+      <table>
+        <tr><th>Term</th><th>Meaning</th><th>Signal</th></tr>
+        <tr><td>BOS — Break of Structure</td><td>Price breaks a prior significant high or low</td><td><span class="tag tag-b">Trend continuing</span></td></tr>
+        <tr><td>CHoCH — Change of Character</td><td>Price breaks structure in the opposite direction</td><td><span class="tag tag-y">Trend reversing</span></td></tr>
+      </table>
+      <h3>Type 1 — Trend Continuation</h3>
+      <p class="hint">Clean trending structure: consistent higher highs + higher lows (up), or lower highs + lower lows (down). Trade the pullbacks/bounces back into structure.</p>
+      <h3>Type 2 — Trend Reversal</h3>
+      <p class="hint">Begins with a CHoCH — the first break of structure in the opposite direction. Highest-probability entry point: catching a reversal early.</p>
+      <table>
+        <tr><th>Scenario</th><th>Type</th><th>Entry</th><th>Risk</th></tr>
+        <tr><td>Strong trending market</td><td><span class="tag tag-b">Type 1</span></td><td>Buy/sell pullbacks</td><td>Lower</td></tr>
+        <tr><td>Trend just reversed</td><td><span class="tag tag-y">Type 2</span></td><td>Enter on CHoCH break</td><td>Medium</td></tr>
+        <tr><td>Choppy sideways market</td><td><span class="tag tag-r">Neither</span></td><td>Stay out</td><td>High</td></tr>
+      </table>
+    </div>
+  </div>
+  <div id="learn-ihs" class="lsub" style="display:none;">
+    <div class="card">
+      <div style="font-weight:700;color:var(--teal-deep);margin-bottom:.5rem;">Inverted Head and Shoulders</div>
+      <p class="hint">A reliable reversal pattern forming at the bottom of a downtrend, signalling a reversal to the upside.</p>
+      <table>
+        <tr><th>Part</th><th>What It Is</th><th>Significance</th></tr>
+        <tr><td>Left Shoulder</td><td>First low — price drops and bounces</td><td>Downtrend still in control</td></tr>
+        <tr><td>Head</td><td>Second low — deeper than left shoulder</td><td>Final push of sellers</td></tr>
+        <tr><td>Right Shoulder</td><td>Third low — higher than the head</td><td>Sellers losing power</td></tr>
+        <tr><td>Neckline</td><td>Line connecting the two bounce highs</td><td>Breaking above = entry signal</td></tr>
+      </table>
+      <h3>How To Trade It</h3>
+      <p class="hint">Identify the three lows, draw the neckline, wait — don't enter early. Enter when price closes above the neckline on good volume. Stop loss below the right shoulder. Target = neckline + head height.</p>
+      <div class="tip">✅ Must form after a clear downtrend · ✅ Head lower than both shoulders · ✅ Shoulders roughly equal height · ✅ Volume rises on breakout · ✅ Wait for a candle close above the neckline · ❌ Never enter mid-pattern</div>
+    </div>
+  </div>
+  <div id="learn-videos" class="lsub" style="display:none;">
+    <div class="card">
+      <h3 style="margin-top:0;">Search These On YouTube</h3>
+      <table>
+        <tr><th>Topic</th><th>Search Term</th></tr>
+        <tr><td>Liquidity sweeps</td><td>"liquidity sweep trading explained"</td></tr>
+        <tr><td>ICT liquidity concepts</td><td>"ICT liquidity concepts explained"</td></tr>
+        <tr><td>Market structure</td><td>"market structure BOS CHoCH explained"</td></tr>
+        <tr><td>Change of character</td><td>"change of character trading"</td></tr>
+        <tr><td>Inverted H&amp;S</td><td>"inverse head and shoulders how to trade"</td></tr>
+        <tr><td>BTC/ETH ratio</td><td>"BTC ETH ratio trading strategy"</td></tr>
+        <tr><td>Pairs trading</td><td>"pairs trading crypto market neutral"</td></tr>
+      </table>
+      <div class="tip" style="margin-top:1rem">Suggested order: chart patterns &amp; risk basics → market structure (BOS/CHoCH) → BTC/ETH ratio specifics → advanced liquidity/smart-money concepts.</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
