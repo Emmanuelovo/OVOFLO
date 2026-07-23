@@ -420,16 +420,21 @@ async function loadBias(){
   const dateInput = document.getElementById('biasDate');
   if(!dateInput.value) dateInput.value = todayStr();
   const date = dateInput.value;
-  const data = await apiGet('/bias/'+date);
-  document.getElementById('b-trend').value = data?.trend || 'Bullish';
-  document.getElementById('b-position').value = data?.position || 'middle';
-  document.getElementById('b-ydhigh').value = data?.ydHigh || '';
-  document.getElementById('b-ydlow').value = data?.ydLow || '';
-  document.getElementById('b-liqnotes').value = data?.liqNotes || '';
-  document.getElementById('b-scenario').value = data?.scenario || 'continuation';
-  document.getElementById('b-tp').value = data?.tp || '';
-  document.getElementById('b-invLevel').value = data?.invLevel || '';
-  document.getElementById('b-invalidated').checked = !!data?.invalidated;
+  try{
+    const data = await apiGet('/bias/'+date);
+    document.getElementById('b-trend').value = data?.trend || 'Bullish';
+    document.getElementById('b-position').value = data?.position || 'middle';
+    document.getElementById('b-ydhigh').value = data?.ydHigh || '';
+    document.getElementById('b-ydlow').value = data?.ydLow || '';
+    document.getElementById('b-liqnotes').value = data?.liqNotes || '';
+    document.getElementById('b-scenario').value = data?.scenario || 'continuation';
+    document.getElementById('b-tp').value = data?.tp || '';
+    document.getElementById('b-invLevel').value = data?.invLevel || '';
+    document.getElementById('b-invalidated').checked = !!data?.invalidated;
+  }catch(err){
+    console.error('Could not load bias for', date, err);
+    toast('Could not load bias entry: '+err.message);
+  }
   renderBiasLog();
 }
 async function saveBias(){
@@ -450,18 +455,23 @@ async function saveBias(){
   renderBiasLog();
 }
 async function renderBiasLog(){
-  const list = await apiGet('/bias?limit=14');
   const box = document.getElementById('biasLog');
-  if(!list.length){ box.innerHTML = `<p class="hint">No bias entries yet.</p>`; return; }
-  box.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Date</th><th>Trend</th><th>Position</th><th>Scenario</th><th>Status</th></tr></thead><tbody>
-    ${list.map(b=>`<tr>
-      <td>${b.date}</td>
-      <td>${escapeHtml(b.trend||'')}</td>
-      <td><span class="tag ${b.position==='premium'?'tag-r':b.position==='discount'?'tag-g':'tag-y'}">${escapeHtml(b.position||'')}</span></td>
-      <td>${escapeHtml(b.scenario||'')}</td>
-      <td>${b.invalidated? '<span class="tag tag-r">Invalidated</span>':'<span class="tag tag-g">Held</span>'}</td>
-    </tr>`).join('')}
-  </tbody></table></div>`;
+  try{
+    const list = await apiGet('/bias?limit=14');
+    if(!list.length){ box.innerHTML = `<p class="hint">No bias entries yet.</p>`; return; }
+    box.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Date</th><th>Trend</th><th>Position</th><th>Scenario</th><th>Status</th></tr></thead><tbody>
+      ${list.map(b=>`<tr>
+        <td>${b.date}</td>
+        <td>${escapeHtml(b.trend||'')}</td>
+        <td><span class="tag ${b.position==='premium'?'tag-r':b.position==='discount'?'tag-g':'tag-y'}">${escapeHtml(b.position||'')}</span></td>
+        <td>${escapeHtml(b.scenario||'')}</td>
+        <td>${b.invalidated? '<span class="tag tag-r">Invalidated</span>':'<span class="tag tag-g">Held</span>'}</td>
+      </tr>`).join('')}
+    </tbody></table></div>`;
+  }catch(err){
+    console.error('Could not load bias log', err);
+    box.innerHTML = `<p class="hint">Could not load bias log: ${escapeHtml(err.message)}</p>`;
+  }
 }
 
 /* ============================================================
@@ -487,35 +497,50 @@ async function renderCalendar(){
   const monthStart = fmtDate(new Date(y,m,1));
   const monthEnd = fmtDate(new Date(y,m,daysInMonth));
 
-  const [trades, biasList] = await Promise.all([
-    apiGet(`/trades?start=${monthStart}&end=${monthEnd}`),
-    apiGet(`/bias?start=${monthStart}&end=${monthEnd}`)
-  ]);
-  const tradesByDay = {};
-  trades.forEach(t=>{ (tradesByDay[t.date] = tradesByDay[t.date]||[]).push(t); });
-  const biasDays = new Set(biasList.map(b=>b.date));
-
-  let cells = ['S','M','T','W','T','F','S'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
-  for(let i=0;i<firstDow;i++) cells += `<div class="cal-day empty"></div>`;
-
-  for(let d=1; d<=daysInMonth; d++){
-    const dateStr = fmtDate(new Date(y,m,d));
-    const isToday = dateStr===todayStr();
-    const isSelected = dateStr===SELECTED_DAY;
-    let statHtml = '';
-    const dayTrades = tradesByDay[dateStr];
-    if(dayTrades && dayTrades.length){
-      const wins = dayTrades.filter(t=>t.outcome==='win').length;
-      const losses = dayTrades.filter(t=>t.outcome==='loss').length;
-      const cls = wins>losses?'win':losses>wins?'loss':'mix';
-      statHtml = `<span class="dstat ${cls}">${dayTrades.length} trade${dayTrades.length>1?'s':''}</span>`;
+  // Render the day numbers immediately, independent of any API call - so the
+  // calendar is never blank even if fetching trades/bias markers fails.
+  function buildCells(tradesByDay, biasDays){
+    let cells = ['S','M','T','W','T','F','S'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
+    for(let i=0;i<firstDow;i++) cells += `<div class="cal-day empty"></div>`;
+    for(let d=1; d<=daysInMonth; d++){
+      const dateStr = fmtDate(new Date(y,m,d));
+      const isToday = dateStr===todayStr();
+      const isSelected = dateStr===SELECTED_DAY;
+      let statHtml = '';
+      const dayTrades = tradesByDay ? tradesByDay[dateStr] : null;
+      if(dayTrades && dayTrades.length){
+        const wins = dayTrades.filter(t=>t.outcome==='win').length;
+        const losses = dayTrades.filter(t=>t.outcome==='loss').length;
+        const cls = wins>losses?'win':losses>wins?'loss':'mix';
+        statHtml = `<span class="dstat ${cls}">${dayTrades.length} trade${dayTrades.length>1?'s':''}</span>`;
+      }
+      const hasBias = biasDays ? biasDays.has(dateStr) : false;
+      const marks = `<div class="dmarks">${hasBias?'<span class="dot bias" title="Bias logged"></span>':''}</div>`;
+      cells += `<div class="cal-day ${isToday?'today':''} ${isSelected?'selected':''}" onclick="openDay('${dateStr}')">
+        <div class="dnum">${d}</div>${statHtml}${marks}
+      </div>`;
     }
-    const marks = `<div class="dmarks">${biasDays.has(dateStr)?'<span class="dot bias" title="Bias logged"></span>':''}</div>`;
-    cells += `<div class="cal-day ${isToday?'today':''} ${isSelected?'selected':''}" onclick="openDay('${dateStr}')">
-      <div class="dnum">${d}</div>${statHtml}${marks}
-    </div>`;
+    return cells;
   }
-  document.getElementById('calGrid').innerHTML = cells;
+
+  // First paint: dates only, so the grid is visible right away.
+  document.getElementById('calGrid').innerHTML = buildCells(null, null);
+
+  // Then layer in trade/bias markers - if this fails, the dates stay visible,
+  // we just show a toast instead of losing the whole calendar.
+  try{
+    const [trades, biasList] = await Promise.all([
+      apiGet(`/trades?start=${monthStart}&end=${monthEnd}`),
+      apiGet(`/bias?start=${monthStart}&end=${monthEnd}`)
+    ]);
+    const tradesByDay = {};
+    trades.forEach(t=>{ (tradesByDay[t.date] = tradesByDay[t.date]||[]).push(t); });
+    const biasDays = new Set(biasList.map(b=>b.date));
+    document.getElementById('calGrid').innerHTML = buildCells(tradesByDay, biasDays);
+  }catch(err){
+    console.error('Could not load calendar markers', err);
+    toast('Calendar loaded, but trade/bias markers failed: '+err.message);
+  }
 }
 
 async function openDay(dateStr){
@@ -591,7 +616,7 @@ function openLightbox(url){
 function renderTradeCard(t){
   return `<div class="trade-entry-card">
     <div class="te-top">
-      <strong>${escapeHtml(t.planName||'No plan')}</strong>
+      <strong>${t.pair?escapeHtml(t.pair)+' · ':''}${escapeHtml(t.planName||'No plan')}</strong>
       <span class="tag ${t.outcome==='win'?'tag-g':t.outcome==='loss'?'tag-r':'tag-y'}">${t.outcome} ${t.pnl!==''&&t.pnl!==undefined?('· $'+t.pnl):''} ${t.rMultiple?('· '+t.rMultiple+'R'):''}</span>
     </div>
     <p class="hint">Followed plan: ${t.followedPlan?'Yes':'No'} · Rule broken: ${t.ruleBroken?'Yes':'No'} · FOMO: ${t.fomoTrade?'Yes':'No'} · Entry emotion: ${escapeHtml(t.entryEmotion||'—')} · Exit emotion: ${escapeHtml(t.exitEmotion||'—')}</p>
@@ -627,7 +652,7 @@ function guardrailBannerHtml(status){
 }
 
 async function openTradeForm(dateStr, tradeId){
-  let t = {planId:'', outcome:'win', pnl:'', riskAmount:'', followedPlan:true, ruleBroken:false, ruleBrokenNotes:'',
+  let t = {planId:'', pair:'', outcome:'win', pnl:'', riskAmount:'', followedPlan:true, ruleBroken:false, ruleBrokenNotes:'',
     fomoTrade:false, missedSetup:false, confluences:'', tradeMgmtNotes:'', mistakes:'', entryEmotion:'', exitEmotion:'',
     htfLink:'', mtfLink:'', ltfLink:''};
   if(tradeId){ t = await apiGet('/trades/'+tradeId); }
@@ -648,12 +673,18 @@ async function openTradeForm(dateStr, tradeId){
         </div>` : ''}
       <div class="grid2">
         <div>
+          <label>Pair / Symbol Traded</label>
+          <input type="text" id="tf-pair" placeholder="e.g. BTC/USD, EUR/USD, AAPL" value="${escapeHtml(t.pair)}"/>
+        </div>
+        <div>
           <label>Plan Used</label>
           <select id="tf-plan">
             <option value="">— none —</option>
             ${PLANS.map(p=>`<option value="${p._id}" ${t.planId===p._id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
           </select>
         </div>
+      </div>
+      <div class="grid2" style="margin-top:.6rem;">
         <div>
           <label>Outcome</label>
           <select id="tf-outcome">
@@ -662,9 +693,9 @@ async function openTradeForm(dateStr, tradeId){
             <option value="breakeven" ${t.outcome==='breakeven'?'selected':''}>Breakeven</option>
           </select>
         </div>
+        <div><label>P/L ($)</label><input type="number" id="tf-pnl" value="${t.pnl}"/></div>
       </div>
       <div class="grid2" style="margin-top:.6rem;">
-        <div><label>P/L ($)</label><input type="number" id="tf-pnl" value="${t.pnl}"/></div>
         <div><label>Risk Amount ($) — used to compute R</label><input type="number" id="tf-risk" value="${t.riskAmount}"/></div>
       </div>
       <div class="grid2" style="margin-top:.6rem;">
@@ -715,6 +746,7 @@ async function saveTrade(dateStr, tradeId){
   const plan = PLANS.find(p=>p._id===planSel.value);
   const data = {
     date: dateStr,
+    pair: document.getElementById('tf-pair').value.trim(),
     planId: planSel.value || null, planName: plan? plan.name : '',
     outcome: document.getElementById('tf-outcome').value,
     pnl: document.getElementById('tf-pnl').value,
@@ -817,13 +849,15 @@ function statsGridHtml(stats){
 
 function bestWorstNote(suggestion){
   if(!suggestion) return '<p class="hint">No trade found for this period yet.</p>';
-  return `<p class="hint">${suggestion.date} · ${escapeHtml(suggestion.planName||'No plan')} · $${suggestion.pnl} ${suggestion.rMultiple?('· '+suggestion.rMultiple+'R'):''}${suggestion.confluences?(' · '+escapeHtml(suggestion.confluences)):''}</p>`;
+  return `<p class="hint">${suggestion.date}${suggestion.pair?(' · '+escapeHtml(suggestion.pair)):''} · ${escapeHtml(suggestion.planName||'No plan')} · $${suggestion.pnl} ${suggestion.rMultiple?('· '+suggestion.rMultiple+'R'):''}${suggestion.confluences?(' · '+escapeHtml(suggestion.confluences)):''}</p>`;
 }
 
 async function renderReview(){
   const label = document.getElementById('reviewPeriodLabel');
   const statsBox = document.getElementById('reviewStats');
   const formWrap = document.getElementById('reviewFormWrap');
+
+  try{
 
   if(REVIEW_PERIOD==='weekly'){
     const weekStart = fmtDate(sundayOf(REVIEW_ANCHOR));
@@ -974,6 +1008,12 @@ async function renderReview(){
         <textarea id="rv-freeform" style="min-height:140px;">${escapeHtml(dr.freeform||'')}</textarea>
         <button class="btn block" style="margin-top:1rem;" onclick="saveAnnualReview(${y})">Save Annual Review</button>
       </div>`;
+  }
+
+  }catch(err){
+    console.error('Could not load review', err);
+    statsBox.innerHTML = '';
+    formWrap.innerHTML = `<div class="danger-box">Could not load this review: ${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -1288,24 +1328,26 @@ let SETTINGS = null;
 
 async function loadSettings(){
   renderProfileCard(CURRENT_USER);
-  SETTINGS = await apiGet('/settings');
-  document.getElementById('st-market').value = SETTINGS.preferences.defaultMarket;
-  document.getElementById('st-tfstyle').value = SETTINGS.preferences.defaultTfStyle;
-  document.getElementById('st-entrymodel').value = SETTINGS.preferences.defaultEntryModel;
+  try{
+    SETTINGS = await apiGet('/settings');
+    document.getElementById('st-market').value = SETTINGS.preferences.defaultMarket;
+    document.getElementById('st-tfstyle').value = SETTINGS.preferences.defaultTfStyle;
+    document.getElementById('st-entrymodel').value = SETTINGS.preferences.defaultEntryModel;
 
-  const g = SETTINGS.guardrails;
-  document.getElementById('st-grd-enabled').checked = g.enabled;
-  document.getElementById('st-grd-capital').value = g.accountCapital;
-  document.getElementById('st-grd-riskpct').value = g.riskPerTradePct;
-  document.getElementById('st-grd-maxtrades').value = g.maxTradesPerDay;
-  document.getElementById('st-grd-maxdd').value = g.maxAccountDrawdownPct;
-  document.getElementById('st-grd-maxdailyloss').value = g.maxDailyLossPct;
-  document.getElementById('st-grd-maxdailyprofit').value = g.maxDailyProfitPct;
+    const g = SETTINGS.guardrails;
+    document.getElementById('st-grd-enabled').checked = g.enabled;
+    document.getElementById('st-grd-capital').value = g.accountCapital;
+    document.getElementById('st-grd-riskpct').value = g.riskPerTradePct;
+    document.getElementById('st-grd-maxtrades').value = g.maxTradesPerDay;
+    document.getElementById('st-grd-maxdd').value = g.maxAccountDrawdownPct;
+    document.getElementById('st-grd-maxdailyloss').value = g.maxDailyLossPct;
+    document.getElementById('st-grd-maxdailyprofit').value = g.maxDailyProfitPct;
 
-  updateRiskPreview();
-  ['st-grd-capital','st-grd-riskpct'].forEach(id=>{
-    document.getElementById(id).addEventListener('input', updateRiskPreview);
-  });
+    updateRiskPreview();
+  }catch(err){
+    console.error('Could not load settings', err);
+    toast('Could not load settings: '+err.message);
+  }
 }
 
 function updateRiskPreview(){
@@ -1396,17 +1438,22 @@ async function saveProfileName(){
    INSIGHTS — EQUITY CURVE
 ============================================================ */
 async function loadEquityCurve(){
-  const points = await apiGet('/stats/equity-curve');
   const wrap = document.getElementById('equityChartWrap');
-  if(!points.length){ wrap.innerHTML = '<p class="hint">No trades logged yet — the equity curve fills in as you journal trades.</p>'; return; }
-  const last = points[points.length-1];
-  wrap.innerHTML = `
-    <div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--dim);font-family:'JetBrains Mono',monospace;margin-bottom:.4rem;">
-      <span>Start: $0</span>
-      <span>Now: $${last.equity} · DD $${last.drawdown}</span>
-    </div>
-    ${renderEquitySvg(points)}
-  `;
+  try{
+    const points = await apiGet('/stats/equity-curve');
+    if(!points.length){ wrap.innerHTML = '<p class="hint">No trades logged yet — the equity curve fills in as you journal trades.</p>'; return; }
+    const last = points[points.length-1];
+    wrap.innerHTML = `
+      <div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--dim);font-family:'JetBrains Mono',monospace;margin-bottom:.4rem;">
+        <span>Start: $0</span>
+        <span>Now: $${last.equity} · DD $${last.drawdown}</span>
+      </div>
+      ${renderEquitySvg(points)}
+    `;
+  }catch(err){
+    console.error('Could not load equity curve', err);
+    wrap.innerHTML = `<p class="hint">Could not load the equity curve: ${escapeHtml(err.message)}</p>`;
+  }
 }
 
 function renderEquitySvg(points){

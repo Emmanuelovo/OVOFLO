@@ -5,6 +5,7 @@ const TradeSchema = new mongoose.Schema({
   date: { type: String, required: true, index: true }, // YYYY-MM-DD
   planId: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan', default: null },
   planName: { type: String, default: '' },
+  pair: { type: String, default: '', trim: true }, // e.g. "BTC/USD", "EUR/USD", "AAPL"
 
   outcome: { type: String, enum: ['win', 'loss', 'breakeven'], required: true },
   pnl: { type: Number, default: 0 },
