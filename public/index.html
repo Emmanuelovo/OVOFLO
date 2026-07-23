@@ -38,6 +38,15 @@
     </div>
 
     <div id="authError" class="danger-box" style="display:none;margin-top:1rem;"></div>
+
+    <div id="googleSignInWrap" style="display:none;margin-top:1.2rem;text-align:center;">
+      <div style="display:flex;align-items:center;gap:.6rem;margin:1rem 0;">
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+        <span class="hint" style="margin:0;">or</span>
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+      <div id="googleSignInBtn" style="display:flex;justify-content:center;"></div>
+    </div>
   </div>
 </div>
 
@@ -49,13 +58,18 @@
     <p class="sub" style="margin-bottom:0;">Plans · Daily Bias · Journal · Reviews · Meditation · Calculator · Learn — saved to your database as you go.</p>
   </div>
   <div style="display:flex;align-items:center;gap:.6rem;">
-    <span class="hint" id="accountEmail"></span>
+    <img id="accountAvatar" class="avatar-img" src="" alt="" style="width:34px;height:34px;display:none;"/>
+    <div id="accountAvatarPlaceholder" class="avatar-placeholder" style="width:34px;height:34px;font-size:.85rem;">?</div>
+    <span class="hint" id="accountEmail" style="margin:0;"></span>
     <button class="btn ghost sm" onclick="doLogout()">Log Out</button>
   </div>
 </div>
 <div style="height:1rem;"></div>
 
-<div class="navbar" id="mainNav"></div>
+<div class="navbar" id="navbarWrap">
+  <button class="nav-toggle" id="navToggle" onclick="toggleMobileNav()" aria-label="Toggle menu"><span></span></button>
+  <div class="nav-links" id="mainNav"></div>
+</div>
 
 <!-- ================= PLANS ================= -->
 <div id="panel-plans" class="panel active">
@@ -164,6 +178,22 @@
 
 <!-- ================= SETTINGS ================= -->
 <div id="panel-settings" class="panel">
+  <div class="card">
+    <h2 style="margin:0;"><span class="eyebrow">PROFILE</span> Your Profile</h2>
+    <div style="display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;margin-top:.8rem;">
+      <img id="profileAvatarPreview" class="avatar-img" src="" alt="" style="width:72px;height:72px;display:none;"/>
+      <div id="profileAvatarPlaceholder" class="avatar-placeholder" style="width:72px;height:72px;font-size:1.5rem;">?</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        <input type="file" id="profilePicInput" accept="image/*" style="display:none;" onchange="onProfilePicSelected(event)"/>
+        <button class="btn sm" onclick="document.getElementById('profilePicInput').click()">Upload Photo</button>
+        <button class="btn ghost sm" onclick="removeProfilePicture()">Remove</button>
+      </div>
+    </div>
+    <label style="margin-top:1.2rem;">Display Name</label>
+    <input type="text" id="st-name" placeholder="Your name"/>
+    <button class="btn sm" style="margin-top:.6rem;" onclick="saveProfileName()">Save Name</button>
+  </div>
+
   <div class="card">
     <h2 style="margin:0;"><span class="eyebrow">PREFS</span> Default Preferences</h2>
     <p class="hint">Defaults used when you create a new plan. Existing plans aren't changed.</p>
@@ -349,14 +379,14 @@
               ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓
   $82,500 ──── <span class="amber">BUY STOPS / SUPPORT</span> ──────── (liquidity resting below)</div>
       <h3>Where Liquidity Rests</h3>
-      <table>
+      <div class="table-scroll"><table>
         <tr><th>Location</th><th>Why Orders Cluster There</th><th>Type</th></tr>
         <tr><td>Previous highs</td><td>Stops sit just above old highs</td><td><span class="tag tag-r">Sell stops</span></td></tr>
         <tr><td>Previous lows</td><td>Stops sit just below old lows</td><td><span class="tag tag-g">Buy stops</span></td></tr>
         <tr><td>Round numbers</td><td>$80,000 / $85,000 — natural order placement</td><td><span class="tag tag-b">Both</span></td></tr>
         <tr><td>Swing highs/lows</td><td>Obvious chart levels</td><td><span class="tag tag-b">Both</span></td></tr>
         <tr><td>Equal highs/lows</td><td>Level touched twice = magnet</td><td><span class="tag tag-b">Both</span></td></tr>
-      </table>
+      </table></div>
     </div>
     <div class="card">
       <div style="font-weight:700;color:var(--teal-deep);margin-bottom:.5rem;">Sweep of Liquidity Above/Below a POI</div>
@@ -377,34 +407,34 @@
     <div class="card">
       <div style="font-weight:700;color:var(--teal-deep);margin-bottom:.5rem;">Market Structure</div>
       <p class="hint">The pattern of higher highs/lows or lower highs/lows tells you whether the market is bullish, bearish, or transitioning.</p>
-      <table>
+      <div class="table-scroll"><table>
         <tr><th>Term</th><th>Meaning</th><th>Signal</th></tr>
         <tr><td>BOS — Break of Structure</td><td>Price breaks a prior significant high or low</td><td><span class="tag tag-b">Trend continuing</span></td></tr>
         <tr><td>CHoCH — Change of Character</td><td>Price breaks structure in the opposite direction</td><td><span class="tag tag-y">Trend reversing</span></td></tr>
-      </table>
+      </table></div>
       <h3>Type 1 — Trend Continuation</h3>
       <p class="hint">Clean trending structure: consistent higher highs + higher lows (up), or lower highs + lower lows (down). Trade the pullbacks/bounces back into structure.</p>
       <h3>Type 2 — Trend Reversal</h3>
       <p class="hint">Begins with a CHoCH — the first break of structure in the opposite direction. Highest-probability entry point: catching a reversal early.</p>
-      <table>
+      <div class="table-scroll"><table>
         <tr><th>Scenario</th><th>Type</th><th>Entry</th><th>Risk</th></tr>
         <tr><td>Strong trending market</td><td><span class="tag tag-b">Type 1</span></td><td>Buy/sell pullbacks</td><td>Lower</td></tr>
         <tr><td>Trend just reversed</td><td><span class="tag tag-y">Type 2</span></td><td>Enter on CHoCH break</td><td>Medium</td></tr>
         <tr><td>Choppy sideways market</td><td><span class="tag tag-r">Neither</span></td><td>Stay out</td><td>High</td></tr>
-      </table>
+      </table></div>
     </div>
   </div>
   <div id="learn-ihs" class="lsub" style="display:none;">
     <div class="card">
       <div style="font-weight:700;color:var(--teal-deep);margin-bottom:.5rem;">Inverted Head and Shoulders</div>
       <p class="hint">A reliable reversal pattern forming at the bottom of a downtrend, signalling a reversal to the upside.</p>
-      <table>
+      <div class="table-scroll"><table>
         <tr><th>Part</th><th>What It Is</th><th>Significance</th></tr>
         <tr><td>Left Shoulder</td><td>First low — price drops and bounces</td><td>Downtrend still in control</td></tr>
         <tr><td>Head</td><td>Second low — deeper than left shoulder</td><td>Final push of sellers</td></tr>
         <tr><td>Right Shoulder</td><td>Third low — higher than the head</td><td>Sellers losing power</td></tr>
         <tr><td>Neckline</td><td>Line connecting the two bounce highs</td><td>Breaking above = entry signal</td></tr>
-      </table>
+      </table></div>
       <h3>How To Trade It</h3>
       <p class="hint">Identify the three lows, draw the neckline, wait — don't enter early. Enter when price closes above the neckline on good volume. Stop loss below the right shoulder. Target = neckline + head height.</p>
       <div class="tip">✅ Must form after a clear downtrend · ✅ Head lower than both shoulders · ✅ Shoulders roughly equal height · ✅ Volume rises on breakout · ✅ Wait for a candle close above the neckline · ❌ Never enter mid-pattern</div>
@@ -413,7 +443,7 @@
   <div id="learn-videos" class="lsub" style="display:none;">
     <div class="card">
       <h3 style="margin-top:0;">Search These On YouTube</h3>
-      <table>
+      <div class="table-scroll"><table>
         <tr><th>Topic</th><th>Search Term</th></tr>
         <tr><td>Liquidity sweeps</td><td>"liquidity sweep trading explained"</td></tr>
         <tr><td>ICT liquidity concepts</td><td>"ICT liquidity concepts explained"</td></tr>
@@ -422,7 +452,7 @@
         <tr><td>Inverted H&amp;S</td><td>"inverse head and shoulders how to trade"</td></tr>
         <tr><td>BTC/ETH ratio</td><td>"BTC ETH ratio trading strategy"</td></tr>
         <tr><td>Pairs trading</td><td>"pairs trading crypto market neutral"</td></tr>
-      </table>
+      </table></div>
       <div class="tip" style="margin-top:1rem">Suggested order: chart patterns &amp; risk basics → market structure (BOS/CHoCH) → BTC/ETH ratio specifics → advanced liquidity/smart-money concepts.</div>
     </div>
   </div>

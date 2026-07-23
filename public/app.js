@@ -22,7 +22,7 @@ async function apiSend(method, path, body){
   if(!r.ok){
     let payload = null;
     try{ payload = await r.json(); }catch(e){ /* not JSON */ }
-    const err = new Error((payload && payload.message) || (method+' '+path+' failed: '+r.status));
+    const err = new Error((payload && (payload.error || payload.message)) || (method+' '+path+' failed: '+r.status));
     err.status = r.status;
     err.payload = payload;
     throw err;
@@ -42,14 +42,68 @@ const apiPost = (path,body)=>apiSend('POST',path,body);
 const apiPut = (path,body)=>apiSend('PUT',path,body);
 const apiDelete = (path)=>apiSend('DELETE',path);
 
+let CURRENT_USER = null;
+
 function showAuthScreen(){
   document.getElementById('authScreen').style.display = 'block';
   document.getElementById('appRoot').style.display = 'none';
 }
-function showAppRoot(user){
+function showAppRoot(){
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
-  document.getElementById('accountEmail').textContent = user ? (user.name ? user.name+' · '+user.email : user.email) : '';
+}
+function initials(user){
+  const source = (user && (user.name || user.email)) || '?';
+  return source.charAt(0).toUpperCase();
+}
+function renderAccountBar(user){
+  CURRENT_USER = user;
+  document.getElementById('accountEmail').textContent = user ? (user.name || user.email) : '';
+  const img = document.getElementById('accountAvatar');
+  const placeholder = document.getElementById('accountAvatarPlaceholder');
+  if(user && user.profilePicture){
+    img.src = user.profilePicture; img.style.display = 'block'; placeholder.style.display = 'none';
+  } else {
+    img.style.display = 'none'; placeholder.style.display = 'flex'; placeholder.textContent = initials(user);
+  }
+}
+function renderProfileCard(user){
+  const nameInput = document.getElementById('st-name');
+  if(nameInput) nameInput.value = (user && user.name) || '';
+  const img = document.getElementById('profileAvatarPreview');
+  const placeholder = document.getElementById('profileAvatarPlaceholder');
+  if(!img || !placeholder) return;
+  if(user && user.profilePicture){
+    img.src = user.profilePicture; img.style.display = 'block'; placeholder.style.display = 'none';
+  } else {
+    img.style.display = 'none'; placeholder.style.display = 'flex'; placeholder.textContent = initials(user);
+  }
+}
+
+/* ---- Google Sign-In ---- */
+async function initGoogleSignIn(){
+  try{
+    const cfg = await fetch(API+'/auth/config').then(r=>r.json());
+    if(!cfg.googleEnabled || !cfg.googleClientId) return;
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.onload = () => {
+      google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: handleGoogleCredential });
+      google.accounts.id.renderButton(document.getElementById('googleSignInBtn'), { theme:'outline', size:'large', width: 320 });
+      document.getElementById('googleSignInWrap').style.display = 'block';
+    };
+    document.head.appendChild(script);
+  }catch(e){ /* Google button just won't show — non-fatal */ }
+}
+async function handleGoogleCredential(response){
+  try{
+    const data = await apiSend('POST','/auth/google', { idToken: response.credential });
+    setToken(data.token);
+    await bootApp(data.user);
+  }catch(err){
+    showAuthError('Could not sign in with Google.');
+  }
 }
 function showAuthTab(which){
   document.getElementById('authTab-login').classList.toggle('active', which==='login');
@@ -96,12 +150,13 @@ function doLogout(){
 }
 
 async function bootApp(user){
-  showAppRoot(user);
+  showAppRoot();
+  renderAccountBar(user);
   renderNav();
   document.getElementById('biasDate').value = todayStr();
   try{
     await loadPlans();
-  }catch(e){ console.error('Could not load plans', e); }
+  }catch(e){ console.error('Could not load plans', e); toast('Could not load your plans: '+e.message); }
   renderPlatforms();
   setCalcMode('crypto');
   calc(); calcPairs();
@@ -135,11 +190,15 @@ function renderNav(){
     `<button class="navbtn ${t.id==='plans'?'active':''}" id="nav-${t.id}" onclick="showPanel('${t.id}')">${t.label}</button>`
   ).join('');
 }
+function toggleMobileNav(){
+  document.getElementById('navbarWrap').classList.toggle('open');
+}
 function showPanel(id){
   NAV_TABS.forEach(t=>{
     document.getElementById('panel-'+t.id).classList.toggle('active', t.id===id);
     document.getElementById('nav-'+t.id).classList.toggle('active', t.id===id);
   });
+  document.getElementById('navbarWrap').classList.remove('open'); // auto-close the mobile drawer after picking a tab
   if(id==='bias') loadBias();
   if(id==='journal') renderCalendar();
   if(id==='reviews') renderReview();
@@ -168,25 +227,40 @@ async function loadPlans(){
 }
 
 async function createPlan(){
-  const p = await apiPost('/plans', { name: 'New Plan '+(PLANS.length+1), market: 'crypto' });
-  PLANS.push(p); ACTIVE_PLAN_ID = p._id;
-  renderPlanChips(); renderPlanEditor(); toast('Plan created');
+  try{
+    const p = await apiPost('/plans', { name: 'New Plan '+(PLANS.length+1), market: 'crypto' });
+    PLANS.push(p); ACTIVE_PLAN_ID = p._id;
+    renderPlanChips(); renderPlanEditor(); toast('Plan created');
+  }catch(err){
+    console.error('createPlan failed', err);
+    toast('Could not create plan: '+err.message);
+  }
 }
 async function deletePlan(id){
   if(!confirm('Delete this plan? This cannot be undone.')) return;
-  await apiDelete('/plans/'+id);
-  PLANS = PLANS.filter(p=>p._id!==id);
-  if(ACTIVE_PLAN_ID===id) ACTIVE_PLAN_ID = PLANS.length? PLANS[0]._id : null;
-  renderPlanChips(); renderPlanEditor(); toast('Plan deleted');
+  try{
+    await apiDelete('/plans/'+id);
+    PLANS = PLANS.filter(p=>p._id!==id);
+    if(ACTIVE_PLAN_ID===id) ACTIVE_PLAN_ID = PLANS.length? PLANS[0]._id : null;
+    renderPlanChips(); renderPlanEditor(); toast('Plan deleted');
+  }catch(err){
+    console.error('deletePlan failed', err);
+    toast('Could not delete plan: '+err.message);
+  }
 }
 async function duplicatePlan(id){
   const src = PLANS.find(p=>p._id===id); if(!src) return;
-  const copy = JSON.parse(JSON.stringify(src));
-  delete copy._id; delete copy.createdAt; delete copy.updatedAt; delete copy.__v;
-  copy.name = src.name+' (copy)';
-  const created = await apiPost('/plans', copy);
-  PLANS.push(created); ACTIVE_PLAN_ID = created._id;
-  renderPlanChips(); renderPlanEditor(); toast('Plan duplicated');
+  try{
+    const copy = JSON.parse(JSON.stringify(src));
+    delete copy._id; delete copy.createdAt; delete copy.updatedAt; delete copy.__v; delete copy.userId;
+    copy.name = src.name+' (copy)';
+    const created = await apiPost('/plans', copy);
+    PLANS.push(created); ACTIVE_PLAN_ID = created._id;
+    renderPlanChips(); renderPlanEditor(); toast('Plan duplicated');
+  }catch(err){
+    console.error('duplicatePlan failed', err);
+    toast('Could not duplicate plan: '+err.message);
+  }
 }
 function selectPlan(id){ ACTIVE_PLAN_ID = id; renderPlanChips(); renderPlanEditor(); }
 
@@ -204,10 +278,16 @@ function activePlan(){ return PLANS.find(p=>p._id===ACTIVE_PLAN_ID); }
 
 async function persistActivePlan(){
   const p = activePlan(); if(!p) return;
-  const body = { ...p }; delete body._id; delete body.createdAt; delete body.updatedAt; delete body.__v;
-  const updated = await apiPut('/plans/'+p._id, body);
-  const idx = PLANS.findIndex(pl=>pl._id===p._id);
-  PLANS[idx] = updated;
+  const body = { ...p };
+  delete body._id; delete body.createdAt; delete body.updatedAt; delete body.__v; delete body.userId;
+  try{
+    const updated = await apiPut('/plans/'+p._id, body);
+    const idx = PLANS.findIndex(pl=>pl._id===p._id);
+    PLANS[idx] = updated;
+  }catch(err){
+    console.error('persistActivePlan failed', err);
+    toast('Could not save plan: '+err.message);
+  }
 }
 
 function renderPlanEditor(){
@@ -225,7 +305,7 @@ function renderPlanEditor(){
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.8rem;">
         <div style="flex:1;min-width:220px;">
           <label>Plan Name</label>
-          <input type="text" value="${escapeHtml(plan.name)}" oninput="updatePlanField('name', this.value)"/>
+          <input type="text" value="${escapeHtml(plan.name)}" onblur="updatePlanField('name', this.value)"/>
         </div>
         <div style="width:220px;">
           <label>Market</label>
@@ -270,11 +350,11 @@ function renderPlanEditor(){
       <div class="radio-cards">
         <div class="radio-card ${plan.entryModel==='aggressive'?'selected':''}" onclick="setEntryModel('aggressive')">
           <div class="rc-head"><input type="radio" name="entryModel" ${plan.entryModel==='aggressive'?'checked':''} onclick="event.stopPropagation();setEntryModel('aggressive')"/> Aggressive</div>
-          <textarea onclick="event.stopPropagation()" oninput="updateEntryModelNote('aggressive', this.value)">${escapeHtml(plan.entryModelNotes.aggressive)}</textarea>
+          <textarea onclick="event.stopPropagation()" onblur="updateEntryModelNote('aggressive', this.value)">${escapeHtml(plan.entryModelNotes.aggressive)}</textarea>
         </div>
         <div class="radio-card ${plan.entryModel==='conservative'?'selected':''}" onclick="setEntryModel('conservative')">
           <div class="rc-head"><input type="radio" name="entryModel" ${plan.entryModel==='conservative'?'checked':''} onclick="event.stopPropagation();setEntryModel('conservative')"/> Conservative</div>
-          <textarea onclick="event.stopPropagation()" oninput="updateEntryModelNote('conservative', this.value)">${escapeHtml(plan.entryModelNotes.conservative)}</textarea>
+          <textarea onclick="event.stopPropagation()" onblur="updateEntryModelNote('conservative', this.value)">${escapeHtml(plan.entryModelNotes.conservative)}</textarea>
         </div>
       </div>
     </div>
@@ -282,9 +362,9 @@ function renderPlanEditor(){
     <div class="card">
       <h2><span class="eyebrow">EXIT</span> Exit Criteria</h2>
       <label>Stop Loss Rule</label>
-      <textarea oninput="updateExitField('sl', this.value)">${escapeHtml(plan.exit.sl)}</textarea>
+      <textarea onblur="updateExitField('sl', this.value)">${escapeHtml(plan.exit.sl)}</textarea>
       <label style="margin-top:.6rem;">Take Profit Rule</label>
-      <textarea oninput="updateExitField('tp', this.value)">${escapeHtml(plan.exit.tp)}</textarea>
+      <textarea onblur="updateExitField('tp', this.value)">${escapeHtml(plan.exit.tp)}</textarea>
     </div>
 
     <div class="card">
@@ -303,9 +383,9 @@ function renderPlanEditor(){
       </div>
       ${plan.tfStyle==='custom' ? `
         <div class="grid3">
-          <div><label>HTF</label><input type="text" value="${escapeHtml(plan.customTf.htf)}" oninput="updateCustomTf('htf', this.value)"/></div>
-          <div><label>MTF</label><input type="text" value="${escapeHtml(plan.customTf.mtf)}" oninput="updateCustomTf('mtf', this.value)"/></div>
-          <div><label>LTF</label><input type="text" value="${escapeHtml(plan.customTf.ltf)}" oninput="updateCustomTf('ltf', this.value)"/></div>
+          <div><label>HTF</label><input type="text" value="${escapeHtml(plan.customTf.htf)}" onblur="updateCustomTf('htf', this.value)"/></div>
+          <div><label>MTF</label><input type="text" value="${escapeHtml(plan.customTf.mtf)}" onblur="updateCustomTf('mtf', this.value)"/></div>
+          <div><label>LTF</label><input type="text" value="${escapeHtml(plan.customTf.ltf)}" onblur="updateCustomTf('ltf', this.value)"/></div>
         </div>
       ` : `
         <div class="grid3">
@@ -318,7 +398,11 @@ function renderPlanEditor(){
   `;
 }
 
-async function updatePlanField(field, val){ const p=activePlan(); if(!p) return; p[field]=val; await persistActivePlan(); renderPlanChips(); }
+async function updatePlanField(field, val){
+  const p=activePlan(); if(!p) return;
+  if(field==='name' && !val.trim()){ toast('Plan name can\'t be empty'); renderPlanEditor(); return; }
+  p[field]=val; await persistActivePlan(); renderPlanChips();
+}
 async function toggleChecklistItem(section, i, checked){ const p=activePlan(); if(!p) return; p[section][i].checked=checked; await persistActivePlan(); }
 async function updateChecklistLabel(section, i, text){ const p=activePlan(); if(!p) return; p[section][i].label=text.trim(); await persistActivePlan(); }
 async function resetChecklist(section){ const p=activePlan(); if(!p) return; p[section].forEach(i=>i.checked=false); await persistActivePlan(); renderPlanEditor(); toast('Checklist reset'); }
@@ -369,7 +453,7 @@ async function renderBiasLog(){
   const list = await apiGet('/bias?limit=14');
   const box = document.getElementById('biasLog');
   if(!list.length){ box.innerHTML = `<p class="hint">No bias entries yet.</p>`; return; }
-  box.innerHTML = `<table><thead><tr><th>Date</th><th>Trend</th><th>Position</th><th>Scenario</th><th>Status</th></tr></thead><tbody>
+  box.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Date</th><th>Trend</th><th>Position</th><th>Scenario</th><th>Status</th></tr></thead><tbody>
     ${list.map(b=>`<tr>
       <td>${b.date}</td>
       <td>${escapeHtml(b.trend||'')}</td>
@@ -377,7 +461,7 @@ async function renderBiasLog(){
       <td>${escapeHtml(b.scenario||'')}</td>
       <td>${b.invalidated? '<span class="tag tag-r">Invalidated</span>':'<span class="tag tag-g">Held</span>'}</td>
     </tr>`).join('')}
-  </tbody></table>`;
+  </tbody></table></div>`;
 }
 
 /* ============================================================
@@ -787,9 +871,9 @@ async function renderReview(){
     formWrap.innerHTML = `
       <div class="card">
         <h2><span class="eyebrow">WEEKS</span> Weekly Reviews This Month</h2>
-        ${data.weeklyReviews.length ? `<table><thead><tr><th>Week</th><th>Focus Set</th></tr></thead><tbody>
+        ${data.weeklyReviews.length ? `<div class="table-scroll"><table><thead><tr><th>Week</th><th>Focus Set</th></tr></thead><tbody>
           ${data.weeklyReviews.map(w=>`<tr><td>${w.weekStart} → ${w.weekEnd}</td><td>${escapeHtml(w.reflection?.singleFocusNextWeek||'—')}</td></tr>`).join('')}
-        </tbody></table>` : '<p class="hint">No weekly reviews logged in this month yet.</p>'}
+        </tbody></table></div>` : '<p class="hint">No weekly reviews logged in this month yet.</p>'}
       </div>
       <div class="card">
         <h2><span class="eyebrow">SCORE</span> Monthly Process Scoring</h2>
@@ -829,9 +913,9 @@ async function renderReview(){
     formWrap.innerHTML = `
       <div class="card">
         <h2><span class="eyebrow">MONTHS</span> Monthly Reviews This Quarter</h2>
-        ${data.monthlyReviews.length ? `<table><thead><tr><th>Month</th><th>Process Score</th><th>Focus Set</th></tr></thead><tbody>
+        ${data.monthlyReviews.length ? `<div class="table-scroll"><table><thead><tr><th>Month</th><th>Process Score</th><th>Focus Set</th></tr></thead><tbody>
           ${data.monthlyReviews.map(mo=>`<tr><td>${mo.year}-${String(mo.month).padStart(2,'0')}</td><td>${mo.processScore ?? '—'}</td><td>${escapeHtml(mo.reflection?.singleFocusNextMonth||'—')}</td></tr>`).join('')}
-        </tbody></table>` : '<p class="hint">No monthly reviews logged in this quarter yet.</p>'}
+        </tbody></table></div>` : '<p class="hint">No monthly reviews logged in this quarter yet.</p>'}
         <p class="hint" style="margin-top:.6rem;">Quarters run calendar-aligned: Q1 Jan–Mar, Q2 Apr–Jun, Q3 Jul–Sep, Q4 Oct–Dec.</p>
       </div>
       <div class="card">
@@ -859,9 +943,9 @@ async function renderReview(){
     formWrap.innerHTML = `
       <div class="card">
         <h2><span class="eyebrow">YEAR</span> Quarters &amp; Months Recap</h2>
-        ${data.quarterlyReviews.length ? `<table><thead><tr><th>Quarter</th><th>Focus Set</th></tr></thead><tbody>
+        ${data.quarterlyReviews.length ? `<div class="table-scroll"><table><thead><tr><th>Quarter</th><th>Focus Set</th></tr></thead><tbody>
           ${data.quarterlyReviews.map(q=>`<tr><td>Q${q.quarter} ${q.year}</td><td>${escapeHtml(q.reflection?.singleFocusNextQuarter||'—')}</td></tr>`).join('')}
-        </tbody></table>` : '<p class="hint">No quarterly reviews logged this year yet.</p>'}
+        </tbody></table></div>` : '<p class="hint">No quarterly reviews logged this year yet.</p>'}
       </div>
       <div class="card">
         <h2><span class="eyebrow">DEEP</span> Annual Deep Reflection</h2>
@@ -1024,9 +1108,9 @@ async function renderMedLog(){
   const log = await apiGet('/meditation?limit=10');
   const box = document.getElementById('medLog');
   if(!log.length){ box.innerHTML = `<p class="hint">No sessions logged yet.</p>`; return; }
-  box.innerHTML = `<table><thead><tr><th>Date</th><th>Duration</th><th>Mood Before → After</th><th>Note</th></tr></thead><tbody>
+  box.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Date</th><th>Duration</th><th>Mood Before → After</th><th>Note</th></tr></thead><tbody>
     ${log.map(s=>`<tr><td>${s.date} ${s.time||''}</td><td>${s.durationMin} min</td><td>${s.moodBefore} → ${s.moodAfter}</td><td>${escapeHtml(s.post||s.pre||'—')}</td></tr>`).join('')}
-  </tbody></table>`;
+  </tbody></table></div>`;
 }
 
 /* ============================================================
@@ -1203,6 +1287,7 @@ function showLearnSub(which){
 let SETTINGS = null;
 
 async function loadSettings(){
+  renderProfileCard(CURRENT_USER);
   SETTINGS = await apiGet('/settings');
   document.getElementById('st-market').value = SETTINGS.preferences.defaultMarket;
   document.getElementById('st-tfstyle').value = SETTINGS.preferences.defaultTfStyle;
@@ -1253,17 +1338,79 @@ async function saveSettings(){
 }
 
 /* ============================================================
+   PROFILE — display name + picture
+============================================================ */
+function resizeImageToDataUrl(file, maxDim, quality){
+  maxDim = maxDim || 400; quality = quality || 0.85;
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w>h){ if(w>maxDim){ h = Math.round(h*maxDim/w); w = maxDim; } }
+        else { if(h>maxDim){ w = Math.round(w*maxDim/h); h = maxDim; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = ()=>reject(new Error('Could not read that image'));
+      img.src = e.target.result;
+    };
+    reader.onerror = ()=>reject(new Error('Could not read that file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function onProfilePicSelected(event){
+  const file = event.target.files[0];
+  event.target.value = '';
+  if(!file) return;
+  try{
+    const dataUrl = await resizeImageToDataUrl(file);
+    const data = await apiSend('PUT','/auth/profile-picture', { imageDataUrl: dataUrl });
+    renderAccountBar(data.user);
+    renderProfileCard(data.user);
+    toast('Profile picture updated');
+  }catch(err){
+    toast('Could not update profile picture');
+  }
+}
+async function removeProfilePicture(){
+  try{
+    const data = await apiSend('DELETE','/auth/profile-picture');
+    renderAccountBar(data.user);
+    renderProfileCard(data.user);
+    toast('Profile picture removed');
+  }catch(err){ toast('Could not remove picture'); }
+}
+async function saveProfileName(){
+  const name = document.getElementById('st-name').value;
+  const data = await apiSend('PUT','/auth/profile', { name });
+  renderAccountBar(data.user);
+  toast('Name saved');
+}
+
+/* ============================================================
    INSIGHTS — EQUITY CURVE
 ============================================================ */
 async function loadEquityCurve(){
   const points = await apiGet('/stats/equity-curve');
   const wrap = document.getElementById('equityChartWrap');
   if(!points.length){ wrap.innerHTML = '<p class="hint">No trades logged yet — the equity curve fills in as you journal trades.</p>'; return; }
-  wrap.innerHTML = renderEquitySvg(points);
+  const last = points[points.length-1];
+  wrap.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:.82rem;color:var(--dim);font-family:'JetBrains Mono',monospace;margin-bottom:.4rem;">
+      <span>Start: $0</span>
+      <span>Now: $${last.equity} · DD $${last.drawdown}</span>
+    </div>
+    ${renderEquitySvg(points)}
+  `;
 }
 
 function renderEquitySvg(points){
-  const W = 900, H = 320, PAD = 40;
+  const W = 900, H = 260, PAD = 20;
   const equities = points.map(p=>p.equity);
   const peaks = points.map(p=>p.peak);
   const minY = Math.min(0, ...equities);
@@ -1286,8 +1433,6 @@ function renderEquitySvg(points){
     <path d="${peakPath}" fill="none" stroke="#FFB020" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.7"/>
     <path d="${equityPath}" fill="none" stroke="${last.equity>=0?'#0FB5AE':'#FF6B6B'}" stroke-width="2.5"/>
     <circle cx="${lastX}" cy="${yFor(last.equity).toFixed(1)}" r="4" fill="${last.equity>=0?'#0FB5AE':'#FF6B6B'}"/>
-    <text x="${PAD}" y="16" font-size="12" fill="#6C8299" font-family="JetBrains Mono, monospace">Start: $0</text>
-    <text x="${W-PAD}" y="16" font-size="12" fill="#6C8299" font-family="JetBrains Mono, monospace" text-anchor="end">Now: $${last.equity} · DD $${last.drawdown}</text>
   </svg>`;
 }
 
@@ -1307,7 +1452,7 @@ async function loadNews(){
       wrap.innerHTML = '<p class="hint">No events returned right now.</p>';
       return;
     }
-    wrap.innerHTML = `<table><thead><tr><th>Date</th><th>Country</th><th>Event</th><th>Impact</th><th>Forecast</th><th>Previous</th></tr></thead><tbody>
+    wrap.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Date</th><th>Country</th><th>Event</th><th>Impact</th><th>Forecast</th><th>Previous</th></tr></thead><tbody>
       ${data.events.slice(0,40).map(e=>`<tr>
         <td>${escapeHtml(e.date)}</td>
         <td>${escapeHtml(e.country)}</td>
@@ -1316,7 +1461,7 @@ async function loadNews(){
         <td>${escapeHtml(String(e.forecast))}</td>
         <td>${escapeHtml(String(e.previous))}</td>
       </tr>`).join('')}
-    </tbody></table>`;
+    </tbody></table></div>`;
   } catch(err){
     wrap.innerHTML = `<div class="warn-box">Could not load the calendar feed.</div>`;
   }
@@ -1326,6 +1471,7 @@ async function loadNews(){
    INIT
 ============================================================ */
 (async function init(){
+  initGoogleSignIn(); // fire-and-forget - shows the Google button on the login screen if configured
   const token = getToken();
   if(!token){ showAuthScreen(); return; }
   try{

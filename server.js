@@ -14,7 +14,7 @@ if (!process.env.JWT_SECRET) {
 }
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '4mb' })); // raised from the 100kb default to fit base64 profile pictures
 app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
 

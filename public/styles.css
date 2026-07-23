@@ -16,12 +16,29 @@ h1,h2,h3{font-family:'Sora',system-ui,sans-serif;}
 h1{font-size:1.9rem;font-weight:800;letter-spacing:-.01em;}
 h1 span{color:var(--teal-deep);}
 .sub{color:var(--dim);font-size:1rem;margin:.25rem 0 1.4rem;}
-.navbar{display:flex;gap:.5rem;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);
-  border-radius:999px;padding:.4rem;margin-bottom:1.6rem;box-shadow:0 6px 20px rgba(19,36,54,.05);}
+.navbar{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:.5rem;margin-bottom:1.6rem;box-shadow:0 6px 20px rgba(19,36,54,.05);}
+.nav-links{display:flex;gap:.5rem;flex-wrap:wrap;}
 .navbtn{border:none;background:transparent;color:var(--dim);font-family:'Sora',sans-serif;font-weight:700;
-  font-size:.88rem;letter-spacing:.02em;padding:.6rem 1rem;border-radius:999px;cursor:pointer;transition:.15s;white-space:nowrap;}
+  font-size:.88rem;letter-spacing:.02em;padding:.6rem 1rem;border-radius:10px;cursor:pointer;transition:.15s;white-space:nowrap;}
 .navbtn:hover{color:var(--ink);}
 .navbtn.active{background:linear-gradient(135deg,var(--teal),var(--sky));color:#fff;box-shadow:0 4px 12px rgba(15,181,174,.35);}
+.nav-toggle{display:none;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;
+  border:1px solid var(--border);background:var(--surface-soft);cursor:pointer;flex-shrink:0;margin-left:auto;}
+.nav-toggle span, .nav-toggle span::before, .nav-toggle span::after{
+  content:'';display:block;width:20px;height:2px;background:var(--ink);position:relative;transition:.15s;}
+.nav-toggle span::before{position:absolute;top:-6px;left:0;}
+.nav-toggle span::after{position:absolute;top:6px;left:0;}
+@media(max-width:720px){
+  .navbar{display:flex;flex-direction:column;align-items:stretch;}
+  .nav-toggle{display:flex;order:-1;}
+  .nav-links{display:none;flex-direction:column;gap:.3rem;margin-top:.6rem;}
+  .navbar.open .nav-links{display:flex;}
+  .navbtn{width:100%;text-align:left;padding:.75rem .9rem;}
+}
+.avatar-img{border-radius:50%;object-fit:cover;background:var(--surface-soft);border:1px solid var(--border);}
+.avatar-placeholder{border-radius:50%;background:var(--surface-soft);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--dim);font-family:'Sora',sans-serif;}
 .panel{display:none;animation:fade .25s ease;}
 .panel.active{display:block;}
 @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
@@ -144,3 +161,21 @@ tr:last-child td{border:none;}
 .subtabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem;}
 .subtab{background:var(--surface);border:1px solid var(--border);padding:.5rem 1rem;border-radius:10px;cursor:pointer;font-weight:700;font-size:.85rem;color:var(--dim);}
 .subtab.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+
+@media(max-width:560px){
+  body{padding:1rem .85rem 3rem;}
+  h1{font-size:1.5rem;}
+  .card{padding:1.1rem;}
+  .result-grid{grid-template-columns:1fr 1fr;}
+  .btn{padding:.75rem 1.2rem;} /* larger tap target on touch screens */
+  .btn.sm{padding:.6rem .9rem;}
+  .toggle-dot{width:26px;height:26px;} /* easier to tap accurately */
+  .cal-day{padding:.3rem;}
+  .cal-day .dstat{font-size:.62rem;}
+  #authScreen{margin:2rem auto !important;}
+}
+
+/* Tables can be wider than a phone screen - scroll the table itself
+   horizontally instead of letting it blow out the page layout. */
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -0.2rem;padding:0 0.2rem;}
+.table-scroll table{min-width:480px;}
