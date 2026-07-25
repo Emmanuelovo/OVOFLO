@@ -693,7 +693,7 @@ async function openTradeForm(dateStr, tradeId){
             <option value="breakeven" ${t.outcome==='breakeven'?'selected':''}>Breakeven</option>
           </select>
         </div>
-        <div><label>P/L ($)</label><input type="number" id="tf-pnl" value="${t.pnl}"/></div>
+        <div><label>P/L ($) — enter the amount, sign is set from Outcome above</label><input type="number" id="tf-pnl" value="${t.pnl}"/></div>
       </div>
       <div class="grid2" style="margin-top:.6rem;">
         <div><label>Risk Amount ($) — used to compute R</label><input type="number" id="tf-risk" value="${t.riskAmount}"/></div>

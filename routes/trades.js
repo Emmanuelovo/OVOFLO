@@ -8,8 +8,16 @@ router.use(requireAuth);
 
 function withRMultiple(body) {
   const out = { ...body };
-  const pnl = parseFloat(out.pnl) || 0;
-  const risk = parseFloat(out.riskAmount) || 0;
+  let pnl = parseFloat(out.pnl) || 0;
+  const risk = Math.abs(parseFloat(out.riskAmount) || 0); // risk amount is always a positive dollar figure
+
+  // The outcome the person picked is the source of truth for sign, not whatever
+  // they happened to type - this is what was letting a "loss" logged with a
+  // positive number get summed into Net PnL as a gain.
+  if (out.outcome === 'win') pnl = Math.abs(pnl);
+  else if (out.outcome === 'loss') pnl = -Math.abs(pnl);
+  // breakeven: leave sign as entered (small +/- from fees/slippage is normal)
+
   out.pnl = pnl;
   out.riskAmount = risk;
   out.rMultiple = risk > 0 ? Math.round((pnl / risk) * 100) / 100 : 0;
