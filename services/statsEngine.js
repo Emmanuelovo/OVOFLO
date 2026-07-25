@@ -7,6 +7,24 @@
  * identical to "summing the weekly numbers" as a result.
  */
 
+// The Outcome field is the source of truth for sign, never the raw stored
+// number - this is what lets every stat below self-correct even for trades
+// that were saved with the wrong sign before that was enforced at write time.
+// A "loss" is always treated as <= 0 and a "win" as >= 0 for every calculation
+// in this file; breakeven is left as entered (small +/- from fees is normal).
+function effectivePnl(t) {
+  const raw = t.pnl || 0;
+  if (t.outcome === 'win') return Math.abs(raw);
+  if (t.outcome === 'loss') return -Math.abs(raw);
+  return raw;
+}
+function effectiveR(t) {
+  const raw = t.rMultiple || 0;
+  if (t.outcome === 'win') return Math.abs(raw);
+  if (t.outcome === 'loss') return -Math.abs(raw);
+  return raw;
+}
+
 function computeStats(trades) {
   const totalTrades = trades.length;
   const wins = trades.filter(t => t.outcome === 'win');
@@ -14,13 +32,13 @@ function computeStats(trades) {
   const breakeven = trades.filter(t => t.outcome === 'breakeven');
 
   const winRate = totalTrades ? (wins.length / totalTrades) * 100 : 0;
-  const netPnl = trades.reduce((s, t) => s + (t.pnl || 0), 0);
-  const netR = trades.reduce((s, t) => s + (t.rMultiple || 0), 0);
+  const netPnl = trades.reduce((s, t) => s + effectivePnl(t), 0);
+  const netR = trades.reduce((s, t) => s + effectiveR(t), 0);
 
-  const avgWinPnl = wins.length ? wins.reduce((s, t) => s + (t.pnl || 0), 0) / wins.length : 0;
-  const avgWinR = wins.length ? wins.reduce((s, t) => s + (t.rMultiple || 0), 0) / wins.length : 0;
-  const avgLossPnl = losses.length ? losses.reduce((s, t) => s + (t.pnl || 0), 0) / losses.length : 0;
-  const avgLossR = losses.length ? losses.reduce((s, t) => s + (t.rMultiple || 0), 0) / losses.length : 0;
+  const avgWinPnl = wins.length ? wins.reduce((s, t) => s + effectivePnl(t), 0) / wins.length : 0;
+  const avgWinR = wins.length ? wins.reduce((s, t) => s + effectiveR(t), 0) / wins.length : 0;
+  const avgLossPnl = losses.length ? losses.reduce((s, t) => s + effectivePnl(t), 0) / losses.length : 0;
+  const avgLossR = losses.length ? losses.reduce((s, t) => s + effectiveR(t), 0) / losses.length : 0;
 
   const ruleBreakCount = trades.filter(t => t.ruleBroken).length;
   const fomoTradeCount = trades.filter(t => t.fomoTrade).length;
@@ -36,7 +54,7 @@ function computeStats(trades) {
   });
   let equity = 0, peak = 0, maxDD = 0;
   for (const t of sorted) {
-    equity += (t.pnl || 0);
+    equity += effectivePnl(t);
     if (equity > peak) peak = equity;
     const dd = peak - equity;
     if (dd > maxDD) maxDD = dd;
@@ -68,7 +86,7 @@ function suggestBestWorst(trades) {
   const wins = trades.filter(t => t.outcome === 'win');
   const losses = trades.filter(t => t.outcome === 'loss');
 
-  const scoreOf = (t) => (t.rMultiple || t.pnl || 0);
+  const scoreOf = (t) => (t.rMultiple ? effectiveR(t) : effectivePnl(t));
 
   const best = wins.length
     ? wins.reduce((a, b) => (scoreOf(b) > scoreOf(a) ? b : a))
@@ -127,12 +145,12 @@ function computeEquityCurve(trades) {
   let equity = 0, peak = 0;
   const points = [];
   for (const t of sorted) {
-    equity += (t.pnl || 0);
+    equity += effectivePnl(t);
     if (equity > peak) peak = equity;
     points.push({
       date: t.date,
       tradeId: t._id,
-      pnl: round2(t.pnl || 0),
+      pnl: round2(effectivePnl(t)),
       equity: round2(equity),
       peak: round2(peak),
       drawdown: round2(peak - equity),
@@ -141,4 +159,4 @@ function computeEquityCurve(trades) {
   return points;
 }
 
-module.exports = { computeStats, suggestBestWorst, weekRange, monthRange, quarterRange, yearRange, fmtDate, computeEquityCurve };
+module.exports = { computeStats, suggestBestWorst, weekRange, monthRange, quarterRange, yearRange, fmtDate, computeEquityCurve, effectivePnl, effectiveR };

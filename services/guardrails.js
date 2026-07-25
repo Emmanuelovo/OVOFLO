@@ -1,6 +1,6 @@
 const Trade = require('../models/Trade');
 const Settings = require('../models/Settings');
-const { computeEquityCurve } = require('./statsEngine');
+const { computeEquityCurve, effectivePnl } = require('./statsEngine');
 
 async function getSettings(userId) {
   let doc = await Settings.findOne({ userId });
@@ -28,7 +28,7 @@ async function evaluateGuardrails(userId, date) {
 
   const todayTrades = await Trade.find({ userId, date }).lean();
   const todayTradeCount = todayTrades.length;
-  const todayPnl = round2(todayTrades.reduce((s, t) => s + (t.pnl || 0), 0));
+  const todayPnl = round2(todayTrades.reduce((s, t) => s + effectivePnl(t), 0));
 
   const allTrades = await Trade.find({ userId }).lean();
   const curve = computeEquityCurve(allTrades);
