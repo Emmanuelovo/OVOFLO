@@ -201,7 +201,12 @@ function showPanel(id){
   document.getElementById('navbarWrap').classList.remove('open'); // auto-close the mobile drawer after picking a tab
   if(id==='bias') loadBias();
   if(id==='journal') renderCalendar();
-  if(id==='reviews') renderReview();
+  if(id==='reviews'){
+    document.getElementById('review-editor').style.display = 'block';
+    document.getElementById('review-history').style.display = 'none';
+    document.querySelectorAll('#panel-reviews .subtab').forEach((el,i)=>el.classList.toggle('active', i===0));
+    renderReview();
+  }
   if(id==='calc'){ renderPlatforms(); calc(); calcPip(); calcPairs(); }
   if(id==='settings') loadSettings();
   if(id==='insights'){ loadEquityCurve(); loadNews(); }
@@ -813,9 +818,19 @@ let REVIEW_PERIOD = 'weekly';
 let REVIEW_ANCHOR = new Date();
 
 function showReviewSub(which){
-  REVIEW_PERIOD = which;
   document.querySelectorAll('#panel-reviews .subtab').forEach(el=>el.classList.remove('active'));
   event.target.classList.add('active');
+
+  if(which==='history'){
+    document.getElementById('review-editor').style.display = 'none';
+    document.getElementById('review-history').style.display = 'block';
+    loadReviewHistory();
+    return;
+  }
+
+  document.getElementById('review-editor').style.display = 'block';
+  document.getElementById('review-history').style.display = 'none';
+  REVIEW_PERIOD = which;
   renderReview();
 }
 function reviewShift(dir){
@@ -1079,6 +1094,110 @@ async function saveAnnualReview(y){
   };
   await apiPut(`/reviews/annual/${y}`, body);
   toast('Annual review saved');
+}
+
+/* ============================================================
+   REVIEWS — HISTORY (browse everything already saved)
+============================================================ */
+function monthName(m){
+  return new Date(2000, m-1, 1).toLocaleString('default', { month: 'long' });
+}
+function historyField(label, value){
+  if(!value) return '';
+  return `<p class="hint" style="margin-top:.5rem;"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`;
+}
+function weeklyReviewCard(r){
+  const qa = r.qa||{}, refl = r.reflection||{};
+  return `<div class="card soft">
+    <h3 style="margin-top:0;">${r.weekStart} → ${r.weekEnd}</h3>
+    ${historyField('Missed setups', qa.missedSetupsCount)}
+    ${historyField('Best trade note', qa.bestTradeNote)}
+    ${historyField('Worst trade note', qa.worstTradeNote)}
+    ${historyField('What went well', refl.wentWell)}
+    ${historyField('Mistakes / weaknesses', refl.mistakesWeaknesses)}
+    ${historyField('Patterns noticed', refl.patternsNoticed)}
+    ${historyField('Focus for next week', refl.singleFocusNextWeek)}
+  </div>`;
+}
+function monthlyReviewCard(r){
+  const qa = r.qa||{}, refl = r.reflection||{};
+  return `<div class="card soft">
+    <h3 style="margin-top:0;">${monthName(r.month)} ${r.year}</h3>
+    ${historyField('Process score', r.processScore!=null ? r.processScore+'/10' : '')}
+    ${historyField('Score notes', r.processScoreNotes)}
+    ${historyField('Missed setups', qa.missedSetupsCount)}
+    ${historyField('Standout win note', refl.bestTradeWinNote)}
+    ${historyField('Standout loss note', refl.bestTradeLossNote)}
+    ${historyField('Mental barrier', refl.mentalBarrier)}
+    ${historyField('Fix plan', refl.fixPlan)}
+    ${historyField('Most proud of', refl.mostProud)}
+    ${historyField('Focus for next month', refl.singleFocusNextMonth)}
+  </div>`;
+}
+function quarterlyReviewCard(r){
+  const refl = r.reflection||{};
+  return `<div class="card soft">
+    <h3 style="margin-top:0;">Q${r.quarter} ${r.year}</h3>
+    ${historyField('What went well', refl.wentWell)}
+    ${historyField('Mistakes', refl.mistakes)}
+    ${historyField('Patterns', refl.patterns)}
+    ${historyField('Biggest lesson', refl.biggestLesson)}
+    ${historyField('Focus for next quarter', refl.singleFocusNextQuarter)}
+  </div>`;
+}
+function annualReviewCard(r){
+  const dr = r.deepReflection||{};
+  return `<div class="card soft">
+    <h3 style="margin-top:0;">${r.year}</h3>
+    ${historyField('Biggest win note', dr.biggestWinNote)}
+    ${historyField('Biggest loss note', dr.biggestLossNote)}
+    ${historyField('Growth areas', dr.growthAreas)}
+    ${historyField('Mental game evolution', dr.mentalGameEvolution)}
+    ${historyField('Systems improvements', dr.systemsImprovements)}
+    ${historyField('Most proud of', dr.mostProud)}
+    ${historyField('Gratitude', dr.gratitude)}
+    ${historyField('Vision for next year', dr.nextYearVision)}
+    ${historyField('Focus for next year', dr.singleFocusNextYear)}
+    ${historyField('Freeform notes', dr.freeform)}
+  </div>`;
+}
+
+async function loadReviewHistory(){
+  const wrap = document.getElementById('review-history');
+  wrap.innerHTML = '<p class="hint">Loading your saved reviews...</p>';
+  try{
+    const [weekly, monthly, quarterly, annual] = await Promise.all([
+      apiGet('/reviews/weekly'),
+      apiGet('/reviews/monthly'),
+      apiGet('/reviews/quarterly'),
+      apiGet('/reviews/annual'),
+    ]);
+
+    wrap.innerHTML = `
+      <div class="card">
+        <h2 style="margin:0;"><span class="eyebrow">WEEKLY</span> Saved Weekly Reviews</h2>
+      </div>
+      ${weekly.length ? weekly.map(weeklyReviewCard).join('') : '<p class="hint" style="margin:0 0 1rem;">No weekly reviews saved yet.</p>'}
+
+      <div class="card">
+        <h2 style="margin:0;"><span class="eyebrow">MONTHLY</span> Saved Monthly Reviews</h2>
+      </div>
+      ${monthly.length ? monthly.map(monthlyReviewCard).join('') : '<p class="hint" style="margin:0 0 1rem;">No monthly reviews saved yet.</p>'}
+
+      <div class="card">
+        <h2 style="margin:0;"><span class="eyebrow">QUARTERLY</span> Saved Quarterly Reviews</h2>
+      </div>
+      ${quarterly.length ? quarterly.map(quarterlyReviewCard).join('') : '<p class="hint" style="margin:0 0 1rem;">No quarterly reviews saved yet.</p>'}
+
+      <div class="card">
+        <h2 style="margin:0;"><span class="eyebrow">ANNUAL</span> Saved Annual Reviews</h2>
+      </div>
+      ${annual.length ? annual.map(annualReviewCard).join('') : '<p class="hint" style="margin:0 0 1rem;">No annual reviews saved yet.</p>'}
+    `;
+  }catch(err){
+    console.error('Could not load review history', err);
+    wrap.innerHTML = `<div class="danger-box">Could not load your review history: ${escapeHtml(err.message)}</div>`;
+  }
 }
 
 /* ============================================================

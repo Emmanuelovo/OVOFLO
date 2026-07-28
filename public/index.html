@@ -163,17 +163,21 @@
     <button class="subtab" onclick="showReviewSub('monthly')">Monthly</button>
     <button class="subtab" onclick="showReviewSub('quarterly')">Quarterly</button>
     <button class="subtab" onclick="showReviewSub('annual')">Annual</button>
+    <button class="subtab" onclick="showReviewSub('history')">History</button>
   </div>
-  <div id="review-nav" class="card" style="display:flex;align-items:center;justify-content:space-between;">
-    <button class="btn ghost sm" onclick="reviewShift(-1)">← Prev</button>
-    <div class="month-label" id="reviewPeriodLabel"></div>
-    <button class="btn ghost sm" onclick="reviewShift(1)">Next →</button>
+  <div id="review-editor">
+    <div id="review-nav" class="card" style="display:flex;align-items:center;justify-content:space-between;">
+      <button class="btn ghost sm" onclick="reviewShift(-1)">← Prev</button>
+      <div class="month-label" id="reviewPeriodLabel"></div>
+      <button class="btn ghost sm" onclick="reviewShift(1)">Next →</button>
+    </div>
+    <div id="reviewStatsCard" class="card">
+      <h2 style="margin:0;"><span class="eyebrow">STATS</span> Performance</h2>
+      <div class="result-grid" id="reviewStats"></div>
+    </div>
+    <div id="reviewFormWrap"></div>
   </div>
-  <div id="reviewStatsCard" class="card">
-    <h2 style="margin:0;"><span class="eyebrow">STATS</span> Performance</h2>
-    <div class="result-grid" id="reviewStats"></div>
-  </div>
-  <div id="reviewFormWrap"></div>
+  <div id="review-history" style="display:none;"></div>
 </div>
 
 <!-- ================= SETTINGS ================= -->
