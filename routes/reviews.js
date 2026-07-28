@@ -15,6 +15,16 @@ async function tradesInRange(userId, start, end) {
 }
 
 /* ---------------- WEEKLY ---------------- */
+
+// GET /api/reviews/weekly - every saved weekly review for this user, newest first.
+// This is what powers the Reviews > History tab.
+router.get('/weekly', async (req, res) => {
+  try {
+    const list = await WeeklyReview.find({ userId: req.userId }).sort({ weekStart: -1 });
+    res.json(list);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/weekly/:weekStart', async (req, res) => {
   try {
     const { start, end } = weekRange(req.params.weekStart);
@@ -39,6 +49,14 @@ router.put('/weekly/:weekStart', async (req, res) => {
 });
 
 /* ---------------- MONTHLY ---------------- */
+
+router.get('/monthly', async (req, res) => {
+  try {
+    const list = await MonthlyReview.find({ userId: req.userId }).sort({ year: -1, month: -1 });
+    res.json(list);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/monthly/:year/:month', async (req, res) => {
   try {
     const year = parseInt(req.params.year, 10), month = parseInt(req.params.month, 10);
@@ -67,6 +85,14 @@ router.put('/monthly/:year/:month', async (req, res) => {
 });
 
 /* ---------------- QUARTERLY ---------------- */
+
+router.get('/quarterly', async (req, res) => {
+  try {
+    const list = await QuarterlyReview.find({ userId: req.userId }).sort({ year: -1, quarter: -1 });
+    res.json(list);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/quarterly/:year/:quarter', async (req, res) => {
   try {
     const year = parseInt(req.params.year, 10), quarter = parseInt(req.params.quarter, 10);
@@ -96,6 +122,14 @@ router.put('/quarterly/:year/:quarter', async (req, res) => {
 });
 
 /* ---------------- ANNUAL ---------------- */
+
+router.get('/annual', async (req, res) => {
+  try {
+    const list = await AnnualReview.find({ userId: req.userId }).sort({ year: -1 });
+    res.json(list);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/annual/:year', async (req, res) => {
   try {
     const year = parseInt(req.params.year, 10);
