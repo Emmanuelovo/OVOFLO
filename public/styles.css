@@ -164,6 +164,11 @@ tr:last-child td{border:none;}
 .subtabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem;}
 .subtab{background:var(--surface);border:1px solid var(--border);padding:.5rem 1rem;border-radius:10px;cursor:pointer;font-weight:700;font-size:.85rem;color:var(--dim);}
 .subtab.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+.history-row{display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.65rem .3rem;
+  border-bottom:1px solid var(--border);cursor:pointer;font-weight:700;font-family:'Sora',sans-serif;font-size:.92rem;transition:.15s;}
+.history-row:last-of-type{border-bottom:none;}
+.history-row:hover{color:var(--teal-deep);}
+.history-row.open{color:var(--teal-deep);}
 
 @media(max-width:560px){
   body{padding:1rem .85rem 3rem;}

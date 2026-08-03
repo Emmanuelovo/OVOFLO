@@ -1106,10 +1106,17 @@ function historyField(label, value){
   if(!value) return '';
   return `<p class="hint" style="margin-top:.5rem;"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`;
 }
+function toggleHistoryItem(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const opening = el.style.display === 'none';
+  el.style.display = opening ? 'block' : 'none';
+  const row = document.getElementById(id+'-row');
+  if(row) row.classList.toggle('open', opening);
+}
 function weeklyReviewCard(r){
   const qa = r.qa||{}, refl = r.reflection||{};
   return `<div class="card soft">
-    <h3 style="margin-top:0;">${r.weekStart} → ${r.weekEnd}</h3>
     ${historyField('Missed setups', qa.missedSetupsCount)}
     ${historyField('Best trade note', qa.bestTradeNote)}
     ${historyField('Worst trade note', qa.worstTradeNote)}
@@ -1122,7 +1129,6 @@ function weeklyReviewCard(r){
 function monthlyReviewCard(r){
   const qa = r.qa||{}, refl = r.reflection||{};
   return `<div class="card soft">
-    <h3 style="margin-top:0;">${monthName(r.month)} ${r.year}</h3>
     ${historyField('Process score', r.processScore!=null ? r.processScore+'/10' : '')}
     ${historyField('Score notes', r.processScoreNotes)}
     ${historyField('Missed setups', qa.missedSetupsCount)}
@@ -1137,7 +1143,6 @@ function monthlyReviewCard(r){
 function quarterlyReviewCard(r){
   const refl = r.reflection||{};
   return `<div class="card soft">
-    <h3 style="margin-top:0;">Q${r.quarter} ${r.year}</h3>
     ${historyField('What went well', refl.wentWell)}
     ${historyField('Mistakes', refl.mistakes)}
     ${historyField('Patterns', refl.patterns)}
@@ -1148,7 +1153,6 @@ function quarterlyReviewCard(r){
 function annualReviewCard(r){
   const dr = r.deepReflection||{};
   return `<div class="card soft">
-    <h3 style="margin-top:0;">${r.year}</h3>
     ${historyField('Biggest win note', dr.biggestWinNote)}
     ${historyField('Biggest loss note', dr.biggestLossNote)}
     ${historyField('Growth areas', dr.growthAreas)}
@@ -1160,6 +1164,76 @@ function annualReviewCard(r){
     ${historyField('Focus for next year', dr.singleFocusNextYear)}
     ${historyField('Freeform notes', dr.freeform)}
   </div>`;
+}
+
+// One clickable row for a saved review - collapsed by default, expands the
+// full card in place when clicked. `preview` is a short one-line hint shown
+// on the row itself (e.g. a focus note) so you don't have to open it to get
+// a sense of what's inside.
+function historyRow(id, dateLabel, preview, cardHtml){
+  return `
+    <div class="history-row" id="${id}-row" onclick="toggleHistoryItem('${id}')">
+      <span class="history-row-date">${escapeHtml(dateLabel)}</span>
+      <span class="hint" style="margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%;">${escapeHtml(preview||'')}</span>
+    </div>
+    <div id="${id}" style="display:none;">${cardHtml}</div>
+  `;
+}
+
+function groupAndSortDesc(list, keyFn){
+  const groups = {};
+  list.forEach(item=>{
+    const k = keyFn(item);
+    (groups[k] = groups[k]||[]).push(item);
+  });
+  return Object.keys(groups).sort().reverse().map(k=>({ key:k, items: groups[k] }));
+}
+
+function weeklyHistoryList(list){
+  if(!list.length) return '<p class="hint" style="margin:0 0 1rem;">No weekly reviews saved yet.</p>';
+  const groups = groupAndSortDesc(list, r=>r.weekStart.slice(0,7)); // group by YYYY-MM
+  return groups.map(g=>{
+    const [y,m] = g.key.split('-');
+    const rows = g.items.map(r=>{
+      const id = 'wk-'+r.weekStart;
+      const preview = r.reflection?.singleFocusNextWeek || '';
+      return historyRow(id, `${r.weekStart} → ${r.weekEnd}`, preview, weeklyReviewCard(r));
+    }).join('');
+    return `<div class="card"><h3 style="margin-top:0;">${monthName(parseInt(m,10))} ${y}</h3>${rows}</div>`;
+  }).join('');
+}
+function monthlyHistoryList(list){
+  if(!list.length) return '<p class="hint" style="margin:0 0 1rem;">No monthly reviews saved yet.</p>';
+  const groups = groupAndSortDesc(list, r=>String(r.year));
+  return groups.map(g=>{
+    const rows = g.items.map(r=>{
+      const id = 'mo-'+r.year+'-'+r.month;
+      const preview = r.processScore!=null ? ('Score '+r.processScore+'/10') : (r.reflection?.singleFocusNextMonth||'');
+      return historyRow(id, `${monthName(r.month)} ${r.year}`, preview, monthlyReviewCard(r));
+    }).join('');
+    return `<div class="card"><h3 style="margin-top:0;">${g.key}</h3>${rows}</div>`;
+  }).join('');
+}
+function quarterlyHistoryList(list){
+  if(!list.length) return '<p class="hint" style="margin:0 0 1rem;">No quarterly reviews saved yet.</p>';
+  const groups = groupAndSortDesc(list, r=>String(r.year));
+  return groups.map(g=>{
+    const rows = g.items.map(r=>{
+      const id = 'qt-'+r.year+'-'+r.quarter;
+      const preview = r.reflection?.singleFocusNextQuarter || '';
+      return historyRow(id, `Q${r.quarter} ${r.year}`, preview, quarterlyReviewCard(r));
+    }).join('');
+    return `<div class="card"><h3 style="margin-top:0;">${g.key}</h3>${rows}</div>`;
+  }).join('');
+}
+function annualHistoryList(list){
+  if(!list.length) return '<p class="hint" style="margin:0 0 1rem;">No annual reviews saved yet.</p>';
+  const rows = list.map(r=>{
+    const id = 'yr-'+r.year;
+    const preview = r.deepReflection?.singleFocusNextYear || '';
+    return historyRow(id, String(r.year), preview, annualReviewCard(r));
+  }).join('');
+  return `<div class="card"><h3 style="margin-top:0;">All Years</h3>${rows}</div>`;
 }
 
 async function loadReviewHistory(){
@@ -1176,23 +1250,25 @@ async function loadReviewHistory(){
     wrap.innerHTML = `
       <div class="card">
         <h2 style="margin:0;"><span class="eyebrow">WEEKLY</span> Saved Weekly Reviews</h2>
+        <p class="hint" style="margin-top:.4rem;">Grouped by month — click a week to open it.</p>
       </div>
-      ${weekly.length ? weekly.map(weeklyReviewCard).join('') : '<p class="hint" style="margin:0 0 1rem;">No weekly reviews saved yet.</p>'}
+      ${weeklyHistoryList(weekly)}
 
       <div class="card">
         <h2 style="margin:0;"><span class="eyebrow">MONTHLY</span> Saved Monthly Reviews</h2>
+        <p class="hint" style="margin-top:.4rem;">Grouped by year — click a month to open it.</p>
       </div>
-      ${monthly.length ? monthly.map(monthlyReviewCard).join('') : '<p class="hint" style="margin:0 0 1rem;">No monthly reviews saved yet.</p>'}
+      ${monthlyHistoryList(monthly)}
 
       <div class="card">
         <h2 style="margin:0;"><span class="eyebrow">QUARTERLY</span> Saved Quarterly Reviews</h2>
       </div>
-      ${quarterly.length ? quarterly.map(quarterlyReviewCard).join('') : '<p class="hint" style="margin:0 0 1rem;">No quarterly reviews saved yet.</p>'}
+      ${quarterlyHistoryList(quarterly)}
 
       <div class="card">
         <h2 style="margin:0;"><span class="eyebrow">ANNUAL</span> Saved Annual Reviews</h2>
       </div>
-      ${annual.length ? annual.map(annualReviewCard).join('') : '<p class="hint" style="margin:0 0 1rem;">No annual reviews saved yet.</p>'}
+      ${annualHistoryList(annual)}
     `;
   }catch(err){
     console.error('Could not load review history', err);
