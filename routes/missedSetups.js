@@ -5,12 +5,15 @@ const requireAuth = require('../middleware/auth');
 
 router.use(requireAuth);
 
+// GET /api/missed-setups?date=YYYY-MM-DD  or  ?start=&end=
 router.get('/', async (req, res) => {
   try {
-    const { start, end } = req.query;
+    const { date, start, end } = req.query;
     let query = { userId: req.userId };
-    if (start && end) query.date = { $gte: start, $lte: end };
-    res.json(await MissedSetup.find(query).sort({ date: -1 }));
+    if (date) query.date = date;
+    else if (start && end) query.date = { $gte: start, $lte: end };
+    const docs = await MissedSetup.find(query).sort({ date: -1, createdAt: -1 });
+    res.json(docs);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -23,7 +26,8 @@ router.post('/', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await MissedSetup.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+    const doc = await MissedSetup.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+    if (!doc) return res.status(404).json({ error: 'Missed setup not found' });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
