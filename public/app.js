@@ -198,7 +198,7 @@ function showPanel(id){
     document.getElementById('panel-'+t.id).classList.toggle('active', t.id===id);
     document.getElementById('nav-'+t.id).classList.toggle('active', t.id===id);
   });
-  document.getElementById('navbarWrap').classList.remove('open'); // auto-close the mobile drawer after picking a tab
+  document.getElementById('navbarWrap').classList.remove('open');
   if(id==='bias') loadBias();
   if(id==='journal') renderCalendar();
   if(id==='reviews'){
@@ -405,7 +405,7 @@ function renderPlanEditor(){
 
 async function updatePlanField(field, val){
   const p=activePlan(); if(!p) return;
-  if(field==='name' && !val.trim()){ toast('Plan name can\'t be empty'); renderPlanEditor(); return; }
+  if(field==='name' && !val.trim()){ toast("Plan name can't be empty"); renderPlanEditor(); return; }
   p[field]=val; await persistActivePlan(); renderPlanChips();
 }
 async function toggleChecklistItem(section, i, checked){ const p=activePlan(); if(!p) return; p[section][i].checked=checked; await persistActivePlan(); }
@@ -502,9 +502,7 @@ async function renderCalendar(){
   const monthStart = fmtDate(new Date(y,m,1));
   const monthEnd = fmtDate(new Date(y,m,daysInMonth));
 
-  // Render the day numbers immediately, independent of any API call - so the
-  // calendar is never blank even if fetching trades/bias markers fails.
-  function buildCells(tradesByDay, biasDays){
+  function buildCells(tradesByDay, biasDays, missedDays){
     let cells = ['S','M','T','W','T','F','S'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
     for(let i=0;i<firstDow;i++) cells += `<div class="cal-day empty"></div>`;
     for(let d=1; d<=daysInMonth; d++){
@@ -520,7 +518,11 @@ async function renderCalendar(){
         statHtml = `<span class="dstat ${cls}">${dayTrades.length} trade${dayTrades.length>1?'s':''}</span>`;
       }
       const hasBias = biasDays ? biasDays.has(dateStr) : false;
-      const marks = `<div class="dmarks">${hasBias?'<span class="dot bias" title="Bias logged"></span>':''}</div>`;
+      const hasMissed = missedDays ? missedDays.has(dateStr) : false;
+      const marks = `<div class="dmarks">
+        ${hasBias?'<span class="dot bias" title="Bias logged"></span>':''}
+        ${hasMissed?'<span class="dot" style="background:var(--amber);" title="Missed setup logged"></span>':''}
+      </div>`;
       cells += `<div class="cal-day ${isToday?'today':''} ${isSelected?'selected':''}" onclick="openDay('${dateStr}')">
         <div class="dnum">${d}</div>${statHtml}${marks}
       </div>`;
@@ -528,20 +530,19 @@ async function renderCalendar(){
     return cells;
   }
 
-  // First paint: dates only, so the grid is visible right away.
-  document.getElementById('calGrid').innerHTML = buildCells(null, null);
+  document.getElementById('calGrid').innerHTML = buildCells(null, null, null);
 
-  // Then layer in trade/bias markers - if this fails, the dates stay visible,
-  // we just show a toast instead of losing the whole calendar.
   try{
-    const [trades, biasList] = await Promise.all([
+    const [trades, biasList, missedList] = await Promise.all([
       apiGet(`/trades?start=${monthStart}&end=${monthEnd}`),
-      apiGet(`/bias?start=${monthStart}&end=${monthEnd}`)
+      apiGet(`/bias?start=${monthStart}&end=${monthEnd}`),
+      apiGet(`/missed-setups?start=${monthStart}&end=${monthEnd}`)
     ]);
     const tradesByDay = {};
     trades.forEach(t=>{ (tradesByDay[t.date] = tradesByDay[t.date]||[]).push(t); });
     const biasDays = new Set(biasList.map(b=>b.date));
-    document.getElementById('calGrid').innerHTML = buildCells(tradesByDay, biasDays);
+    const missedDays = new Set(missedList.map(ms=>ms.date));
+    document.getElementById('calGrid').innerHTML = buildCells(tradesByDay, biasDays, missedDays);
   }catch(err){
     console.error('Could not load calendar markers', err);
     toast('Calendar loaded, but trade/bias markers failed: '+err.message);
@@ -551,9 +552,10 @@ async function renderCalendar(){
 async function openDay(dateStr){
   SELECTED_DAY = dateStr;
   renderCalendar();
-  const [survey, trades] = await Promise.all([
+  const [survey, trades, missedSetups] = await Promise.all([
     apiGet('/surveys/'+dateStr),
-    apiGet('/trades?date='+dateStr)
+    apiGet('/trades?date='+dateStr),
+    apiGet('/missed-setups?date='+dateStr)
   ]);
   const sv = survey || {};
   const wrap = document.getElementById('dayDetail');
@@ -587,13 +589,21 @@ async function openDay(dateStr){
       </div>
       <div id="tradeFormWrap"></div>
     </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;"><span class="eyebrow">MISSED</span> Missed Setups</h2>
+        <button class="btn sm" onclick="openMissedSetupForm('${dateStr}')">+ Log Missed Setup</button>
+      </div>
+      <p class="hint" style="margin-top:.4rem;">A setup you saw and didn't take — different from a trade you took and lost. This feeds your Reviews stats automatically.</p>
+      <div id="missedSetupsList" style="margin-top:.8rem;">
+        ${missedSetups.length? missedSetups.map(ms=>renderMissedSetupCard(ms)).join('') : '<p class="hint">No missed setups logged for this day.</p>'}
+      </div>
+      <div id="missedSetupFormWrap"></div>
+    </div>
   `;
 }
 
-// Renders a chart URL as an actual image thumbnail (click to enlarge).
-// If the URL doesn't load as an image (e.g. a TradingView share page rather
-// than a direct image link), falls back to a plain "open link" pill instead
-// of showing a broken image icon.
 function chartThumb(url, label){
   if(!url) return '';
   const safe = escapeHtml(url);
@@ -635,6 +645,20 @@ function renderTradeCard(t){
     <div style="display:flex;gap:.5rem;margin-top:.6rem;">
       <button class="btn ghost sm" onclick="openTradeForm('${t.date}','${t._id}')">Edit</button>
       <button class="btn danger sm" onclick="deleteTrade('${t.date}','${t._id}')">Delete</button>
+    </div>
+  </div>`;
+}
+
+function renderMissedSetupCard(ms){
+  return `<div class="trade-entry-card">
+    <div class="te-top">
+      <strong>${ms.pair?escapeHtml(ms.pair)+' · ':''}${escapeHtml(ms.planName||'No plan')}</strong>
+      <span class="tag tag-y">Missed</span>
+    </div>
+    ${ms.description? `<p class="hint"><strong>Setup:</strong> ${escapeHtml(ms.description)}</p>`:''}
+    ${ms.reasonSkipped? `<p class="hint"><strong>Why skipped:</strong> ${escapeHtml(ms.reasonSkipped)}</p>`:''}
+    <div style="display:flex;gap:.5rem;margin-top:.6rem;">
+      <button class="btn danger sm" onclick="deleteMissedSetup('${ms.date}','${ms._id}')">Delete</button>
     </div>
   </div>`;
 }
@@ -780,7 +804,7 @@ async function saveTrade(dateStr, tradeId){
     } catch(err){
       if(err.status===403 && err.payload){
         toast('Blocked by guardrails — check the override box if you really want to log this');
-        openTradeForm(dateStr); // re-render with fresh guardrail status
+        openTradeForm(dateStr);
         return;
       }
       throw err;
@@ -797,6 +821,69 @@ async function deleteTrade(dateStr, tradeId){
   openDay(dateStr);
   renderCalendar();
 }
+
+/* ============================================================
+   JOURNAL — MISSED SETUPS
+============================================================ */
+function openMissedSetupForm(dateStr){
+  document.getElementById('missedSetupFormWrap').innerHTML = `
+    <div class="card soft" style="margin-top:1rem;">
+      <h3 style="margin-top:0;">Log Missed Setup — ${dateStr}</h3>
+      <div class="grid2">
+        <div><label>Pair / Symbol</label><input type="text" id="ms-pair" placeholder="e.g. BTC/USD"/></div>
+        <div>
+          <label>Plan (optional)</label>
+          <select id="ms-plan">
+            <option value="">— none —</option>
+            ${PLANS.map(p=>`<option value="${p._id}">${escapeHtml(p.name)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <label style="margin-top:.6rem;">What was the setup?</label>
+      <textarea id="ms-description" placeholder="Describe the setup you saw but didn't take"></textarea>
+      <label style="margin-top:.5rem;">Why did you skip it?</label>
+      <input type="text" id="ms-reason" placeholder="e.g. hesitated, not at desk, feared another loss"/>
+      <div style="display:flex;gap:.6rem;margin-top:1rem;">
+        <button class="btn" onclick="saveMissedSetup('${dateStr}')">Save</button>
+        <button class="btn ghost" onclick="document.getElementById('missedSetupFormWrap').innerHTML=''">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+async function saveMissedSetup(dateStr){
+  const planSel = document.getElementById('ms-plan');
+  const plan = PLANS.find(p=>p._id===planSel.value);
+  const data = {
+    date: dateStr,
+    pair: document.getElementById('ms-pair').value.trim(),
+    planId: planSel.value || null,
+    planName: plan ? plan.name : '',
+    description: document.getElementById('ms-description').value,
+    reasonSkipped: document.getElementById('ms-reason').value,
+  };
+  try{
+    await apiPost('/missed-setups', data);
+    toast('Missed setup logged');
+    openDay(dateStr);
+    renderCalendar();
+  }catch(err){
+    console.error('saveMissedSetup failed', err);
+    toast('Could not save missed setup: '+err.message);
+  }
+}
+async function deleteMissedSetup(dateStr, id){
+  if(!confirm('Delete this missed setup entry?')) return;
+  try{
+    await apiDelete('/missed-setups/'+id);
+    toast('Missed setup deleted');
+    openDay(dateStr);
+    renderCalendar();
+  }catch(err){
+    console.error('deleteMissedSetup failed', err);
+    toast('Could not delete: '+err.message);
+  }
+}
+
 async function saveSurvey(dateStr){
   const data = {
     followed: document.getElementById('sv-followed').value,
@@ -851,6 +938,7 @@ function statsGridHtml(stats){
     <div class="result-box profit"><div class="result-val green">${stats.wins}</div><div class="result-label">Wins</div></div>
     <div class="result-box loss"><div class="result-val red">${stats.losses}</div><div class="result-label">Losses</div></div>
     <div class="result-box"><div class="result-val blue">${stats.breakeven}</div><div class="result-label">Breakeven</div></div>
+    <div class="result-box warn"><div class="result-val yellow">${stats.missedSetupsCount ?? 0}</div><div class="result-label">Missed Setups</div></div>
     <div class="result-box warn"><div class="result-val yellow">${stats.winRate}%</div><div class="result-label">Win Rate</div></div>
     <div class="result-box ${stats.netPnl>=0?'profit':'loss'}"><div class="result-val ${stats.netPnl>=0?'green':'red'}">$${stats.netPnl}</div><div class="result-label">Net PnL</div></div>
     <div class="result-box ${stats.netR>=0?'profit':'loss'}"><div class="result-val ${stats.netR>=0?'green':'red'}">${stats.netR}R</div><div class="result-label">Net R</div></div>
@@ -865,6 +953,13 @@ function statsGridHtml(stats){
 function bestWorstNote(suggestion){
   if(!suggestion) return '<p class="hint">No trade found for this period yet.</p>';
   return `<p class="hint">${suggestion.date}${suggestion.pair?(' · '+escapeHtml(suggestion.pair)):''} · ${escapeHtml(suggestion.planName||'No plan')} · $${suggestion.pnl} ${suggestion.rMultiple?('· '+suggestion.rMultiple+'R'):''}${suggestion.confluences?(' · '+escapeHtml(suggestion.confluences)):''}</p>`;
+}
+
+function missedSetupsSummaryHtml(list){
+  if(!list || !list.length) return '';
+  return `<ul style="margin:.4rem 0 0 1.1rem;">${list.map(m=>
+    `<li class="hint">${m.date}${m.pair?(' · '+escapeHtml(m.pair)):''}${m.description?(' — '+escapeHtml(m.description)):''}</li>`
+  ).join('')}</ul>`;
 }
 
 async function renderReview(){
@@ -888,7 +983,8 @@ async function renderReview(){
         <label>Compliance Rate</label>
         <div class="tip">${data.stats.complianceRate}% of trades followed your plan this week (auto-calculated from the journal).</div>
         <label style="margin-top:.6rem;">How many setups did you miss?</label>
-        <input type="number" id="rv-missed" value="${qa.missedSetupsCount ?? ''}"/>
+        <div class="tip">${data.stats.missedSetupsCount} auto-counted from your Missed Setup logs this week.${missedSetupsSummaryHtml(data.missedSetups)}</div>
+        <input type="number" id="rv-missed" value="${qa.missedSetupsCount ?? data.stats.missedSetupsCount ?? ''}"/>
         <label style="margin-top:.6rem;">Best trade this week (auto-suggested — edit the note)</label>
         ${bestWorstNote(data.suggestions.best)}
         <textarea id="rv-bestnote" placeholder="What did you do right here, so you repeat it?">${escapeHtml(qa.bestTradeNote||'')}</textarea>
@@ -931,7 +1027,8 @@ async function renderReview(){
         <label style="margin-top:.6rem;">Score notes</label>
         <textarea id="rv-scorenotes">${escapeHtml(r.processScoreNotes||'')}</textarea>
         <label style="margin-top:.6rem;">How many setups did you miss this month?</label>
-        <input type="number" id="rv-missed" value="${qa.missedSetupsCount ?? ''}"/>
+        <div class="tip">${data.stats.missedSetupsCount} auto-counted from your Missed Setup logs this month.${missedSetupsSummaryHtml(data.missedSetups)}</div>
+        <input type="number" id="rv-missed" value="${qa.missedSetupsCount ?? data.stats.missedSetupsCount ?? ''}"/>
       </div>
       <div class="card">
         <h2><span class="eyebrow">REFLECT</span> Monthly Reflection</h2>
@@ -1166,10 +1263,6 @@ function annualReviewCard(r){
   </div>`;
 }
 
-// One clickable row for a saved review - collapsed by default, expands the
-// full card in place when clicked. `preview` is a short one-line hint shown
-// on the row itself (e.g. a focus note) so you don't have to open it to get
-// a sense of what's inside.
 function historyRow(id, dateLabel, preview, cardHtml){
   return `
     <div class="history-row" id="${id}-row" onclick="toggleHistoryItem('${id}')">
@@ -1191,7 +1284,7 @@ function groupAndSortDesc(list, keyFn){
 
 function weeklyHistoryList(list){
   if(!list.length) return '<p class="hint" style="margin:0 0 1rem;">No weekly reviews saved yet.</p>';
-  const groups = groupAndSortDesc(list, r=>r.weekStart.slice(0,7)); // group by YYYY-MM
+  const groups = groupAndSortDesc(list, r=>r.weekStart.slice(0,7));
   return groups.map(g=>{
     const [y,m] = g.key.split('-');
     const rows = g.items.map(r=>{
@@ -1713,14 +1806,13 @@ async function loadNews(){
    INIT
 ============================================================ */
 (async function init(){
-  initGoogleSignIn(); // fire-and-forget - shows the Google button on the login screen if configured
+  initGoogleSignIn();
   const token = getToken();
   if(!token){ showAuthScreen(); return; }
   try{
     const data = await apiGet('/auth/me');
     await bootApp(data.user);
   }catch(e){
-    // apiGet already redirects to the auth screen on 401; anything else, play it safe and show login too
     showAuthScreen();
   }
 })();
