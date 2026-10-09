@@ -175,19 +175,21 @@ function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&'
    NAV
 ============================================================ */
 const NAV_TABS = [
-  {id:'plans',label:'Plans'},
-  {id:'bias',label:'Daily Bias'},
-  {id:'journal',label:'Journal'},
-  {id:'reviews',label:'Reviews'},
-  {id:'insights',label:'Equity & News'},
-  {id:'med',label:'Meditation'},
-  {id:'calc',label:'Calculator'},
-  {id:'learn',label:'Learn'},
-  {id:'settings',label:'Settings'},
+  {id:'plans',label:'Plans',icon:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>'},
+  {id:'bias',label:'Bias',icon:'<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>'},
+  {id:'journal',label:'Journal',icon:'<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z"/><path d="M5 17a3 3 0 013-3h11"/>'},
+  {id:'reviews',label:'Reviews',icon:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 12.5l2 2 4-4.5"/>'},
+  {id:'insights',label:'Insights',icon:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'},
+  {id:'med',label:'Reset',icon:'<path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/>'},
+  {id:'calc',label:'Calc',icon:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/>'},
+  {id:'learn',label:'Learn',icon:'<path d="M2 8l10-5 10 5-10 5z"/><path d="M6 10.5V16c0 1.5 3 3 6 3s6-1.5 6-3v-5.5"/>'},
+  {id:'settings',label:'Settings',icon:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'},
 ];
 function renderNav(){
   document.getElementById('mainNav').innerHTML = NAV_TABS.map(t=>
-    `<button class="navbtn ${t.id==='plans'?'active':''}" id="nav-${t.id}" onclick="showPanel('${t.id}')">${t.label}</button>`
+    `<button class="navbtn ${t.id==='plans'?'active':''}" id="nav-${t.id}" onclick="showPanel('${t.id}')">
+      <svg viewBox="0 0 24 24" aria-hidden="true">${t.icon}</svg><span>${t.label}</span>
+    </button>`
   ).join('');
 }
 function toggleMobileNav(){
@@ -198,6 +200,9 @@ function showPanel(id){
     document.getElementById('panel-'+t.id).classList.toggle('active', t.id===id);
     document.getElementById('nav-'+t.id).classList.toggle('active', t.id===id);
   });
+    const activeBtn = document.getElementById('nav-'+id);
+  if(activeBtn) activeBtn.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
+  window.scrollTo({top:0, behavior:'smooth'});
   document.getElementById('navbarWrap').classList.remove('open');
   if(id==='bias') loadBias();
   if(id==='journal') renderCalendar();
@@ -1764,7 +1769,7 @@ function renderEquitySvg(points){
 
   return `
   <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" xmlns="http://www.w3.org/2000/svg">
-    <line x1="${PAD}" y1="${zeroY}" x2="${W-PAD}" y2="${zeroY}" stroke="#DCE8F0" stroke-width="1"/>
+    <line x1="${PAD}" y1="${zeroY}" x2="${W-PAD}" y2="${zeroY}" stroke="#2A3556" stroke-width="1"/>
     <path d="${peakPath}" fill="none" stroke="#FFB020" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.7"/>
     <path d="${equityPath}" fill="none" stroke="${last.equity>=0?'#0FB5AE':'#FF6B6B'}" stroke-width="2.5"/>
     <circle cx="${lastX}" cy="${yFor(last.equity).toFixed(1)}" r="4" fill="${last.equity>=0?'#0FB5AE':'#FF6B6B'}"/>

@@ -52,24 +52,20 @@
 
 <div id="appRoot" class="wrap" style="display:none;">
 
-<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
-  <div>
-    <h1>OvoWorks <span>Trading Suite</span></h1>
-    <p class="sub" style="margin-bottom:0;">Plans · Daily Bias · Journal · Reviews · Meditation · Calculator · Learn — saved to your database as you go.</p>
-  </div>
-  <div style="display:flex;align-items:center;gap:.6rem;">
-    <img id="accountAvatar" class="avatar-img" src="" alt="" style="width:34px;height:34px;display:none;"/>
-    <div id="accountAvatarPlaceholder" class="avatar-placeholder" style="width:34px;height:34px;font-size:.85rem;">?</div>
+<div class="app-header">
+  <h1>OvoWorks <span>Trading Suite</span></h1>
+  <div class="app-user">
+    <img id="accountAvatar" class="avatar-img" src="" alt="" style="width:36px;height:36px;display:none;"/>
+    <div id="accountAvatarPlaceholder" class="avatar-placeholder" style="width:36px;height:36px;font-size:.85rem;">?</div>
     <span class="hint" id="accountEmail" style="margin:0;"></span>
     <button class="btn ghost sm" onclick="doLogout()">Log Out</button>
   </div>
 </div>
-<div style="height:1rem;"></div>
 
-<div class="navbar" id="navbarWrap">
-  <button class="nav-toggle" id="navToggle" onclick="toggleMobileNav()" aria-label="Toggle menu"><span></span></button>
+<!-- Bottom tab bar (CSS fixes it to the bottom of the screen) -->
+<nav class="navbar" id="navbarWrap">
   <div class="nav-links" id="mainNav"></div>
-</div>
+</nav>
 
 <!-- ================= PLANS ================= -->
 <div id="panel-plans" class="panel active">
@@ -253,8 +249,8 @@
 
 <!-- ================= MEDITATION ================= -->
 <div id="panel-med" class="panel">
-  <div class="card" style="background:linear-gradient(160deg,#F3F0FF,#EAF6F2);">
-    <h2 style="margin:0;"><span class="eyebrow" style="background:rgba(155,140,255,.15);color:#6a5acd;">RESET</span> Meditation Room</h2>
+    <div class="card" style="background:linear-gradient(160deg,rgba(155,140,255,.16),rgba(25,211,197,.07)),var(--surface);">
+    <h2 style="margin:0;"><span class="eyebrow" style="background:rgba(155,140,255,.18);color:var(--lavender);">RESET</span> Meditation Room</h2>
     <p class="hint">Clear the noise of the last trade before you open the next chart. A few quiet minutes here is part of the plan, not a break from it.</p>
     <div class="med-stage">
       <div class="breath-circle" id="breathCircle">Ready</div>
